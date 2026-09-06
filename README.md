@@ -179,25 +179,30 @@ cargo test --manifest-path programs/identity_registry/Cargo.toml
 anchor test --skip-build
 ```
 
-### Run the Web & Flutter Frontends
+### Flutter App (app)
 
-#### 1. React Web App (contracts/app)
-```bash
-cd contracts/app
-npm install
-npm run dev
-# Running on http://localhost:3000
-```
+The Flutter mobile and web application provides an ultra-premium dark glassmorphic dashboard showcasing the 17-step acceptance scenario, on-chain PDA state inspection, operator simulation console, and immutable Anchor audit trail.
 
-#### 2. Flutter App (app)
+#### 1. Build & Run for Android
 ```bash
 cd app
 flutter pub get
-flutter build web
 
-# Serve Flutter Web App
+# Build Release APK
+flutter build apk --release
+# Output: app/build/app/outputs/flutter-apk/app-release.apk
+
+# Build Debug APK
+flutter build apk --debug
+# Output: app/build/app/outputs/flutter-apk/app-debug.apk
+```
+
+#### 2. Run for Web
+```bash
+cd app
+flutter build web
 python3 -m http.server 8080 --directory build/web
-# Running on http://localhost:8080
+# Live on http://localhost:8080
 ```
 
 ---
