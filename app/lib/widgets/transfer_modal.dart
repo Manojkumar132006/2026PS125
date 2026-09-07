@@ -27,8 +27,7 @@ class _TransferSheet extends StatefulWidget {
 
 class _TransferSheetState extends State<_TransferSheet> {
   late DigitalAsset _selectedAsset;
-  String _selectedRecipientLabel = 'Bob (Resource Owner)';
-  String _selectedRecipientAddress = '5nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b';
+  final TextEditingController _recipientCtrl = TextEditingController(text: 'sarah.chen@acme.com');
   bool _isSuccess = false;
   String? _errorMessage;
 
@@ -36,11 +35,12 @@ class _TransferSheetState extends State<_TransferSheet> {
   void initState() {
     super.initState();
     _selectedAsset = widget.service.assets.first;
-    // Set default recipient to someone other than current user
-    if (widget.service.currentAccount.label.startsWith('Bob')) {
-      _selectedRecipientLabel = 'Alice (Asset Manager)';
-      _selectedRecipientAddress = '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a';
-    }
+  }
+
+  @override
+  void dispose() {
+    _recipientCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -99,7 +99,6 @@ class _TransferSheetState extends State<_TransferSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Drag handle
           Center(
             child: Container(
               width: 36,
@@ -128,7 +127,7 @@ class _TransferSheetState extends State<_TransferSheet> {
           ),
           const SizedBox(height: 14),
 
-          // 1. Select Asset (Wise card dropdown)
+          // 1. Select Asset
           const Text('Select Asset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textDim)),
           const SizedBox(height: 6),
           Container(
@@ -170,47 +169,54 @@ class _TransferSheetState extends State<_TransferSheet> {
           ),
           const SizedBox(height: 14),
 
-          // 2. Select Recipient
-          const Text('Recipient Identity', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textDim)),
+          // 2. Recipient Input
+          const Text('Recipient (Work Email or Solana Public Key)',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textDim)),
           const SizedBox(height: 6),
+          TextField(
+            controller: _recipientCtrl,
+            style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.person_search_rounded, size: 18, color: AppColors.textDim),
+              hintText: 'colleague@acmecorp.com or Solana Address',
+              hintStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+              filled: true,
+              fillColor: AppColors.bgSecondary,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Suggestion Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _RecipientChip(
-                  label: 'Bob (Owner)',
-                  address: '5nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b',
-                  isSelected: _selectedRecipientLabel == 'Bob (Resource Owner)',
-                  onTap: () {
-                    setState(() {
-                      _selectedRecipientLabel = 'Bob (Resource Owner)';
-                      _selectedRecipientAddress = '5nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b';
-                    });
-                  },
+                _QuickRecipientChip(
+                  label: 'sarah.chen@acme.com',
+                  onTap: () => setState(() => _recipientCtrl.text = 'sarah.chen@acme.com'),
                 ),
-                const SizedBox(width: 8),
-                _RecipientChip(
-                  label: 'Alice (Manager)',
-                  address: '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a',
-                  isSelected: _selectedRecipientLabel == 'Alice (Asset Manager)',
-                  onTap: () {
-                    setState(() {
-                      _selectedRecipientLabel = 'Alice (Asset Manager)';
-                      _selectedRecipientAddress = '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a';
-                    });
-                  },
+                const SizedBox(width: 6),
+                _QuickRecipientChip(
+                  label: 'devops-vault@acme.com',
+                  onTap: () => setState(() => _recipientCtrl.text = 'devops-vault@acme.com'),
                 ),
-                const SizedBox(width: 8),
-                _RecipientChip(
-                  label: 'Identity C',
-                  address: '3cRts89Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL33',
-                  isSelected: _selectedRecipientLabel == 'Identity C',
-                  onTap: () {
-                    setState(() {
-                      _selectedRecipientLabel = 'Identity C';
-                      _selectedRecipientAddress = '3cRts89Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL33';
-                    });
-                  },
+                const SizedBox(width: 6),
+                _QuickRecipientChip(
+                  label: 'security@acme.com',
+                  onTap: () => setState(() => _recipientCtrl.text = 'security@acme.com'),
                 ),
               ],
             ),
@@ -229,7 +235,7 @@ class _TransferSheetState extends State<_TransferSheet> {
               children: [
                 _FeeRow(label: 'Transfer Item', value: _selectedAsset.name),
                 const SizedBox(height: 8),
-                _FeeRow(label: 'To Identity', value: _selectedRecipientLabel),
+                _FeeRow(label: 'Recipient', value: _recipientCtrl.text.isNotEmpty ? _recipientCtrl.text : 'None'),
                 const Divider(height: 16, color: AppColors.border),
                 _FeeRow(
                   label: 'Network Gas Fee',
@@ -285,20 +291,25 @@ class _TransferSheetState extends State<_TransferSheet> {
             onPressed: widget.service.isLoading
                 ? null
                 : () async {
+                    final recipient = _recipientCtrl.text.trim();
+                    if (recipient.isEmpty) {
+                      setState(() => _errorMessage = 'Please enter a recipient email or address.');
+                      return;
+                    }
+
                     setState(() => _errorMessage = null);
                     bool ok = false;
                     if (widget.isGrantMode) {
-                      ok = await widget.service.grantAccess(
+                      ok = await widget.service.transferAsset(
                         asset: _selectedAsset,
-                        granteeAddress: _selectedRecipientAddress,
-                        granteeLabel: _selectedRecipientLabel,
-                        permissions: 0x08,
+                        recipientAddress: 'pda_$recipient',
+                        recipientLabel: recipient,
                       );
                     } else {
                       ok = await widget.service.transferAsset(
                         asset: _selectedAsset,
-                        recipientAddress: _selectedRecipientAddress,
-                        recipientLabel: _selectedRecipientLabel,
+                        recipientAddress: 'pda_$recipient',
+                        recipientLabel: recipient,
                       );
                     }
 
@@ -334,29 +345,29 @@ class _TransferSheetState extends State<_TransferSheet> {
   }
 }
 
-class _RecipientChip extends StatelessWidget {
+class _QuickRecipientChip extends StatelessWidget {
   final String label;
-  final String address;
-  final bool isSelected;
   final VoidCallback onTap;
 
-  const _RecipientChip({
-    required this.label,
-    required this.address,
-    required this.isSelected,
-    required this.onTap,
-  });
+  const _QuickRecipientChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 11)),
-      selected: isSelected,
-      onSelected: (_) => onTap(),
-      selectedColor: AppColors.primary.withValues(alpha: 0.25),
-      backgroundColor: AppColors.bgSecondary,
-      side: BorderSide(color: isSelected ? AppColors.primary : AppColors.border),
-      visualDensity: VisualDensity.compact,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.cyan, fontWeight: FontWeight.w500),
+        ),
+      ),
     );
   }
 }

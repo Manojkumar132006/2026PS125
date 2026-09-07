@@ -180,6 +180,8 @@ class ActivityFeedView extends StatelessWidget {
         return AppColors.rose;
       case ActivityType.deploy:
         return AppColors.amber;
+      case ActivityType.auth:
+        return AppColors.primaryLight;
     }
   }
 
@@ -197,6 +199,8 @@ class ActivityFeedView extends StatelessWidget {
         return Icons.shield_rounded;
       case ActivityType.deploy:
         return Icons.account_tree_rounded;
+      case ActivityType.auth:
+        return Icons.lock_open_rounded;
     }
   }
 }

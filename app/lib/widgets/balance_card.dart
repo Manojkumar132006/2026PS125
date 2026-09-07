@@ -11,7 +11,8 @@ class BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final account = service.currentAccount;
+    final user = service.currentUser;
+    if (user == null) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -41,7 +42,7 @@ class BalanceCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
+              const Text(
                 'Total Balance',
                 style: TextStyle(
                   fontSize: 13,
@@ -67,7 +68,7 @@ class BalanceCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '◎ ${account.solBalance.toStringAsFixed(2)}',
+                '◎ ${user.solBalance.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
@@ -88,16 +89,16 @@ class BalanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Fee Sponsorship Pill (Phantom / Wise transparency)
+          // Fee Sponsorship Pill (Wise / Phantom transparency)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: service.isFeeSponsored
+              color: user.isGasSponsored
                   ? AppColors.emerald.withValues(alpha: 0.12)
                   : AppColors.amber.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: service.isFeeSponsored
+                color: user.isGasSponsored
                     ? AppColors.emerald.withValues(alpha: 0.3)
                     : AppColors.amber.withValues(alpha: 0.3),
               ),
@@ -106,17 +107,17 @@ class BalanceCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  service.isFeeSponsored ? Icons.bolt_rounded : Icons.account_balance_wallet_rounded,
+                  user.isGasSponsored ? Icons.bolt_rounded : Icons.account_balance_wallet_rounded,
                   size: 14,
-                  color: service.isFeeSponsored ? AppColors.emerald : AppColors.amber,
+                  color: user.isGasSponsored ? AppColors.emerald : AppColors.amber,
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  service.isFeeSponsored
+                  user.isGasSponsored
                       ? '⚡ Gas-Free: 100% Sponsored by Org'
                       : 'User Pays Gas Fees',
                   style: TextStyle(
-                    color: service.isFeeSponsored ? AppColors.emerald : AppColors.amber,
+                    color: user.isGasSponsored ? AppColors.emerald : AppColors.amber,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -126,7 +127,7 @@ class BalanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 22),
 
-          // Quick Action Buttons (Wise / Phantom style circular actions)
+          // Quick Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [

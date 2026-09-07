@@ -22,7 +22,8 @@ class _ReceiveSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final account = service.currentAccount;
+    final user = service.currentUser;
+    if (user == null) return const SizedBox.shrink();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -103,16 +104,16 @@ class _ReceiveSheet extends StatelessWidget {
           // Public Key Box
           _CopyCard(
             label: 'Solana Public Key',
-            value: account.publicKey,
-            shortValue: account.shortPublicKey,
+            value: user.publicKey,
+            shortValue: user.shortPublicKey,
           ),
           const SizedBox(height: 10),
 
           // Identity PDA Box
           _CopyCard(
             label: 'Self-Sovereign Identity PDA',
-            value: account.identityPda,
-            shortValue: account.shortIdentityPda,
+            value: user.identityPda,
+            shortValue: user.shortIdentityPda,
             badge: 'PDA',
           ),
           const SizedBox(height: 16),

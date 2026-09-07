@@ -99,7 +99,7 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
               final asset = displayedAssets[index];
               return _AssetCard(
                 asset: asset,
-                isOwner: asset.ownerIdentityPda == widget.service.currentAccount.identityPda,
+                isOwner: asset.ownerIdentityPda == widget.service.currentUser?.identityPda,
                 onTap: () => _showAssetDetailsModal(context, asset),
               );
             },
@@ -116,7 +116,7 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        final isOwner = asset.ownerIdentityPda == widget.service.currentAccount.identityPda;
+        final isOwner = asset.ownerIdentityPda == widget.service.currentUser?.identityPda;
 
         return Padding(
           padding: const EdgeInsets.all(20),

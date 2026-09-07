@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/solana_service.dart';
 import '../theme/app_theme.dart';
-import 'connect_wallet_modal.dart';
 import 'receive_modal.dart';
 
 class IdentityPassView extends StatelessWidget {
@@ -12,7 +11,9 @@ class IdentityPassView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final account = service.currentAccount;
+    final user = service.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
     final permissions = service.currentPermissions;
 
     return SingleChildScrollView(
@@ -59,9 +60,9 @@ class IdentityPassView extends StatelessWidget {
                           child: const Icon(Icons.shield_rounded, color: Colors.white, size: 16),
                         ),
                         const SizedBox(width: 8),
-                        const Text(
-                          '2026PS125 Identity',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                        Text(
+                          '${user.companyDomain} Identity',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                       ],
                     ),
@@ -89,7 +90,7 @@ class IdentityPassView extends StatelessWidget {
 
                 // Name & Role
                 Text(
-                  account.label,
+                  user.name,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
                 const SizedBox(height: 4),
@@ -102,13 +103,13 @@ class IdentityPassView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        account.role,
+                        user.role,
                         style: const TextStyle(color: AppColors.primaryLight, fontSize: 11, fontWeight: FontWeight.w600),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Mask: 0x${account.permissionsMask.toRadixString(16).toUpperCase()}',
+                      'Mask: 0x${user.permissionsMask.toRadixString(16).toUpperCase()}',
                       style: AppTheme.mono(fontSize: 11, color: AppColors.textDim),
                     ),
                   ],
@@ -123,14 +124,14 @@ class IdentityPassView extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        account.identityPda,
+                        user.identityPda,
                         style: AppTheme.mono(fontSize: 11, color: Colors.white70),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     InkWell(
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: account.identityPda));
+                        Clipboard.setData(ClipboardData(text: user.identityPda));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Identity PDA copied'),
@@ -153,14 +154,14 @@ class IdentityPassView extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        account.publicKey,
+                        user.publicKey,
                         style: AppTheme.mono(fontSize: 11, color: Colors.white70),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     InkWell(
                       onTap: () {
-                        Clipboard.setData(ClipboardData(text: account.publicKey));
+                        Clipboard.setData(ClipboardData(text: user.publicKey));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Controller Public Key copied'),
@@ -178,7 +179,7 @@ class IdentityPassView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Actions: QR Code / Switch Persona
+          // Actions: QR Code / Sign Out
           Row(
             children: [
               Expanded(
@@ -196,12 +197,12 @@ class IdentityPassView extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => showConnectWalletModal(context, service),
-                  icon: const Icon(Icons.switch_account_rounded, size: 16, color: AppColors.primaryLight),
-                  label: const Text('Switch Persona', style: TextStyle(fontSize: 12, color: AppColors.primaryLight)),
+                  onPressed: () => service.signOut(),
+                  icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.rose),
+                  label: const Text('Sign Out', style: TextStyle(fontSize: 12, color: AppColors.rose)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: const BorderSide(color: AppColors.borderHover),
+                    side: BorderSide(color: AppColors.rose.withValues(alpha: 0.4)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),

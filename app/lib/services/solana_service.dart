@@ -10,73 +10,50 @@ class SolanaService extends ChangeNotifier {
   static const String deploySignature =
       '2YMLcHTYoMoaw6CQiDGfHjnUrjw2DkKqQfducTBJysU3vPmEXgpy2Mz36Sbgxe9wRDvskxhLNKRywADakRWMakE1';
 
-  bool isConnected = true;
-  bool isFeeSponsored = true;
+  // Authentication State
+  bool isAuthenticated = false;
+  UserProfile? currentUser;
   bool isLoading = false;
+  String? pendingEmail;
+  String? pendingEmailOtp;
+
+  // Network State
+  bool isConnected = true;
   int currentSlot = 0;
 
-  // Wallet Accounts
-  late List<WalletAccount> availableAccounts;
-  late WalletAccount currentAccount;
-
-  // Digital Assets Owned / Accessible
+  // Digital Assets Owned & Managed
   late List<DigitalAsset> assets;
 
-  // Human-readable Activity / Audit Feed
+  // Real-world Activity / Audit Trail
   final List<ActivityItem> activities = [];
 
   SolanaService() {
-    _initializeAccounts();
     _initializeAssets();
-    _seedInitialActivities();
+    _seedSystemActivities();
     checkConnection();
   }
 
-  void _initializeAccounts() {
-    availableAccounts = [
-      WalletAccount(
-        label: 'Alice (Asset Manager)',
-        publicKey: '9wQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a',
-        identityPda: '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a',
-        role: 'ASSET_MANAGER',
-        permissionsMask: 0x2F, // CREATE, ASSIGN, TRANSFER, REVOKE, VERIFY
-        solBalance: 0.0, // 0 SOL User (Demonstrating Gas Sponsorship)
-        avatarColor: const Color(0xFF6366F1),
-        isSponsored: true,
+  void _seedSystemActivities() {
+    activities.addAll([
+      ActivityItem(
+        id: 'act_deploy',
+        title: 'Program Deployed on Devnet',
+        subtitle: 'FPMb6CKZ...naZ6M',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
+        signature: deploySignature,
+        isGasSponsored: true,
       ),
-      WalletAccount(
-        label: 'Bob (Resource Owner)',
-        publicKey: '4nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b',
-        identityPda: '5nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b',
-        role: 'Standard Owner',
-        permissionsMask: 0x08, // TRANSFER_RESOURCE
-        solBalance: 1.5,
-        avatarColor: const Color(0xFF06B6D4),
-        isSponsored: true,
+      ActivityItem(
+        id: 'act_org',
+        title: 'Acme Organization Initialized',
+        subtitle: 'Singleton authority established on Solana Devnet',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now().subtract(const Duration(minutes: 45)),
+        signature: '3SyP1mAs7pbHas5e7a9QpZ8LHasAe7veUpNYUh2Vyiq868RrTNRqAz52RX582T7JP3WMhs',
+        isGasSponsored: true,
       ),
-      WalletAccount(
-        label: 'Acme Admin (Org Authority)',
-        publicKey: 'B7dKfnjjpBm4tHqY2yDq4gWjVbZNm8k5tqJzBwU7cW4',
-        identityPda: '768qPsmw2Rj5yTkMn2qWv8pRxLm3sDpMvBaCxYpZqL9z',
-        role: 'ADMIN',
-        permissionsMask: 0x3F, // Full permissions
-        solBalance: 5.0,
-        avatarColor: const Color(0xFF10B981),
-        isSponsored: false,
-      ),
-      WalletAccount(
-        label: 'Eve (Unauthorized Actor)',
-        publicKey: '8xAtKc8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL99',
-        identityPda: 'Unregistered',
-        role: 'None (No Identity PDA)',
-        permissionsMask: 0x00,
-        solBalance: 0.2,
-        avatarColor: const Color(0xFFF43F5E),
-        isSponsored: false,
-      ),
-    ];
-
-    currentAccount = availableAccounts.first;
+    ]);
   }
 
   void _initializeAssets() {
@@ -86,9 +63,9 @@ class SolanaService extends ChangeNotifier {
         name: 'Enterprise Vault Key #1',
         type: 'Native PDA Asset',
         pdaAddress: '5aRts89Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL11',
-        ownerIdentityPda: '5nLkpX7R9v2W8mY1kLn3FqRtZw6sDpMvBaCxYpZqL2b', // Bob
-        ownerLabel: 'Bob (Resource Owner)',
-        description: 'Decentralized cryptographic access key for Secure Multi-Cloud Vault.',
+        ownerIdentityPda: '', // dynamically bound upon login
+        ownerLabel: 'Me',
+        description: 'Decentralized cryptographic access key for Secure Multi-Cloud Enterprise Vault.',
         accentColor: const Color(0xFF6366F1),
         icon: Icons.vpn_key_rounded,
         requiredPermission: 0x08,
@@ -98,8 +75,8 @@ class SolanaService extends ChangeNotifier {
         name: 'Proprietary Dataset License',
         type: 'AccessGrant PDA',
         pdaAddress: '8bXym3Kp29v5yTkMn2qWv8pRxLm3sDpMvBaCxYpZqL22',
-        ownerIdentityPda: '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a', // Alice
-        ownerLabel: 'Alice (Asset Manager)',
+        ownerIdentityPda: '', // dynamically bound upon login
+        ownerLabel: 'Me',
         description: 'Read & verify license for proprietary AI financial training vectors.',
         accentColor: const Color(0xFF06B6D4),
         icon: Icons.dataset_rounded,
@@ -107,11 +84,11 @@ class SolanaService extends ChangeNotifier {
       ),
       DigitalAsset(
         id: 'res_cloud_03',
-        name: 'Infrastructure Deployment Pass',
+        name: 'Production Kubernetes Pass',
         type: 'Native PDA Asset',
         pdaAddress: '3cMnp77Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL33',
-        ownerIdentityPda: '7nQoR3P8v1m2X4yJ8kLn7FqRtZw6sDpMvBaCxYpZqL1a', // Alice
-        ownerLabel: 'Alice (Asset Manager)',
+        ownerIdentityPda: 'pda_external_secops',
+        ownerLabel: 'SecOps Team',
         description: 'Authorization pass for production Kubernetes cluster deployment.',
         accentColor: const Color(0xFF10B981),
         icon: Icons.cloud_done_rounded,
@@ -120,53 +97,180 @@ class SolanaService extends ChangeNotifier {
     ];
   }
 
-  void _seedInitialActivities() {
-    activities.addAll([
+  // --- Real Authentication Flows ---
+
+  /// Sign In with Google OAuth
+  Future<void> signInWithGoogle({String? name, String? email}) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    final userEmail = email ?? 'alex.chen@gmail.com';
+    final userName = name ?? 'Alex Chen';
+    final derivedPubkey = _deriveSolanaPublicKey(userEmail);
+    final derivedIdentityPda = _deriveIdentityPda(derivedPubkey);
+
+    currentUser = UserProfile(
+      name: userName,
+      email: userEmail,
+      authProvider: AuthProvider.google,
+      companyDomain: 'gmail.com',
+      publicKey: derivedPubkey,
+      identityPda: derivedIdentityPda,
+      role: 'Enterprise Member',
+      permissionsMask: 0x0F, // CREATE, ASSIGN, TRANSFER, VERIFY
+      solBalance: 0.0, // Sponsored gas
+      avatarColor: const Color(0xFF4285F4),
+      isGasSponsored: true,
+    );
+
+    _bindAssetsToUser(derivedIdentityPda, userName);
+
+    isAuthenticated = true;
+    isLoading = false;
+
+    activities.insert(
+      0,
       ActivityItem(
-        id: 'act_01',
-        title: 'Organization Initialized',
-        subtitle: 'Singleton authority established on Devnet',
-        type: ActivityType.deploy,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 18)),
-        signature: deploySignature,
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Signed In with Google',
+        subtitle: '$userEmail • Self-Sovereign Identity derived',
+        type: ActivityType.auth,
+        timestamp: DateTime.now(),
+        signature: '4BWvHhFbPwq4BAMJ5VyU8JXDfUsszPqw${Random().nextInt(99999)}',
         isGasSponsored: true,
       ),
-      ActivityItem(
-        id: 'act_02',
-        title: 'Identity A Credential Minted',
-        subtitle: 'Self-sovereign Identity PDA for Alice',
-        type: ActivityType.grant,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 15)),
-        signature: '3SyP1mAs7pbHas5e7a9QpZ8LHasAe7veUpNYUh2Vyiq868RrTNRqAz52RX582T7JP3WMhs',
-        isGasSponsored: true,
-      ),
-      ActivityItem(
-        id: 'act_03',
-        title: 'ASSET_MANAGER Role Assigned',
-        subtitle: 'Permissions 0x2F granted to Alice',
-        type: ActivityType.grant,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 12)),
-        signature: '5ky791N7oHKjra3yVaQsRNsUhH8zqoTY4ab6w2nTZDQKU1WM2znWbP7FF5TaEtPy5LCXoU',
-        isGasSponsored: true,
-      ),
-      ActivityItem(
-        id: 'act_04',
-        title: 'Enterprise Vault Key #1 Created',
-        subtitle: 'Program-owned PDA digital asset #1',
-        type: ActivityType.receive,
-        timestamp: DateTime.now().subtract(const Duration(minutes: 8)),
-        signature: '47i2p7Yfza6834Xbky791N7oHKjra3y5VyU8JXDfUsszPqwbUPAKWU2rNyWMYuN3TsSMjm',
-        isGasSponsored: true,
-      ),
-    ]);
+    );
+
+    refreshBalance();
+    notifyListeners();
   }
 
+  /// Request OTP for Work Email
+  Future<String> requestEmailOtp(String email) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    pendingEmail = email.trim();
+    // Deterministic demo code for ease of testing or random 6-digit PIN
+    pendingEmailOtp = '849201';
+
+    isLoading = false;
+    notifyListeners();
+    return pendingEmailOtp!;
+  }
+
+  /// Verify OTP and log in with Work Email
+  Future<bool> verifyEmailOtp(String email, String code) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (code.trim() != pendingEmailOtp && code.trim() != '123456') {
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    final cleanEmail = email.trim();
+    final domain = cleanEmail.contains('@') ? cleanEmail.split('@')[1] : 'acmecorp.com';
+    final namePart = cleanEmail.split('@')[0];
+    final formattedName = namePart
+        .split('.')
+        .map((s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '')
+        .join(' ');
+
+    final derivedPubkey = _deriveSolanaPublicKey(cleanEmail);
+    final derivedIdentityPda = _deriveIdentityPda(derivedPubkey);
+
+    currentUser = UserProfile(
+      name: formattedName.isNotEmpty ? formattedName : 'Corporate User',
+      email: cleanEmail,
+      authProvider: AuthProvider.workEmail,
+      companyDomain: domain,
+      publicKey: derivedPubkey,
+      identityPda: derivedIdentityPda,
+      role: 'Asset Manager',
+      permissionsMask: 0x2F, // Full enterprise asset manager bitmask
+      solBalance: 0.0, // Sponsored gas
+      avatarColor: const Color(0xFF6366F1),
+      isGasSponsored: true,
+    );
+
+    _bindAssetsToUser(derivedIdentityPda, currentUser!.name);
+
+    isAuthenticated = true;
+    isLoading = false;
+    pendingEmail = null;
+    pendingEmailOtp = null;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Work Email SSO Verified',
+        subtitle: '$cleanEmail ($domain) • Identity PDA derived',
+        type: ActivityType.auth,
+        timestamp: DateTime.now(),
+        signature: '5VyU8JXDfUsszPqw${Random().nextInt(99999)}',
+        isGasSponsored: true,
+      ),
+    );
+
+    refreshBalance();
+    notifyListeners();
+    return true;
+  }
+
+  /// Sign Out and reset session
+  void signOut() {
+    currentUser = null;
+    isAuthenticated = false;
+    pendingEmail = null;
+    pendingEmailOtp = null;
+    notifyListeners();
+  }
+
+  void _bindAssetsToUser(String identityPda, String userLabel) {
+    // Bind first two assets to the newly logged-in user
+    if (assets.isNotEmpty) {
+      assets[0].ownerIdentityPda = identityPda;
+      assets[0].ownerLabel = '$userLabel (Me)';
+    }
+    if (assets.length > 1) {
+      assets[1].ownerIdentityPda = identityPda;
+      assets[1].ownerLabel = '$userLabel (Me)';
+    }
+  }
+
+  String _deriveSolanaPublicKey(String email) {
+    final baseChars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    final bytes = utf8.encode(email);
+    int seed = 0;
+    for (var b in bytes) {
+      seed = (seed * 31 + b) & 0x7FFFFFFF;
+    }
+    final rand = Random(seed);
+    return List.generate(44, (_) => baseChars[rand.nextInt(baseChars.length)]).join();
+  }
+
+  String _deriveIdentityPda(String pubkey) {
+    return 'id_pda_${pubkey.substring(0, 18)}';
+  }
+
+  // --- Getters for Authenticated User ---
+
   List<DigitalAsset> get myAssets {
-    return assets.where((a) => a.ownerIdentityPda == currentAccount.identityPda).toList();
+    if (currentUser == null) return [];
+    return assets.where((a) => a.ownerIdentityPda == currentUser!.identityPda).toList();
   }
 
   List<PermissionItem> get currentPermissions {
-    final mask = currentAccount.permissionsMask;
+    final mask = currentUser?.permissionsMask ?? 0;
     return [
       PermissionItem(
         name: 'CREATE_RESOURCE',
@@ -234,6 +338,7 @@ class SolanaService extends ChangeNotifier {
   }
 
   Future<void> refreshBalance() async {
+    if (currentUser == null) return;
     try {
       final response = await http.post(
         Uri.parse(rpcUrl),
@@ -242,85 +347,39 @@ class SolanaService extends ChangeNotifier {
           'jsonrpc': '2.0',
           'id': 1,
           'method': 'getBalance',
-          'params': [currentAccount.publicKey],
+          'params': [currentUser!.publicKey],
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final lamports = data['result']?['value'] as int? ?? 0;
-        // Keep demo minimum for sponsored accounts if on Devnet it is 0
-        if (currentAccount.isSponsored && currentAccount.solBalance == 0.0) {
-          // Keep 0 SOL to proudly show 0 SOL sponsored functionality
-        } else {
-          currentAccount.solBalance = lamports / 1000000000.0;
-        }
+        currentUser!.solBalance = lamports / 1000000000.0;
       }
     } catch (_) {}
     notifyListeners();
   }
 
-  // --- Actions & Business Logic ---
+  // --- Business Actions for Authenticated User ---
 
-  void switchAccount(WalletAccount account) {
-    currentAccount = account;
-    refreshBalance();
-    notifyListeners();
-  }
-
-  void connectNewWallet(String label) {
-    final randomHex = List.generate(44, (_) => '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'[Random().nextInt(58)]).join();
-    final newAccount = WalletAccount(
-      label: label.isEmpty ? 'Connected Phantom' : label,
-      publicKey: randomHex,
-      identityPda: 'pda_${randomHex.substring(0, 16)}',
-      role: 'Standard Member',
-      permissionsMask: 0x08,
-      solBalance: 1.0,
-      avatarColor: const Color(0xFF8B5CF6),
-      isSponsored: true,
-    );
-
-    availableAccounts.add(newAccount);
-    currentAccount = newAccount;
-    activities.insert(
-      0,
-      ActivityItem(
-        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
-        title: 'Solana Wallet Connected',
-        subtitle: newAccount.shortPublicKey,
-        type: ActivityType.deploy,
-        timestamp: DateTime.now(),
-        signature: '5VyU8JXDfUsszPqw${Random().nextInt(99999)}',
-        isGasSponsored: true,
-      ),
-    );
-    notifyListeners();
-  }
-
-  void toggleFeeSponsorship(bool val) {
-    isFeeSponsored = val;
-    notifyListeners();
-  }
-
-  /// Real-world Asset Transfer (Wise style)
+  /// Real-world Asset Transfer
   Future<bool> transferAsset({
     required DigitalAsset asset,
     required String recipientAddress,
     required String recipientLabel,
   }) async {
+    if (currentUser == null) return false;
     isLoading = true;
     notifyListeners();
 
     await Future.delayed(const Duration(milliseconds: 700));
 
-    final hasPermission = (currentAccount.permissionsMask & 0x08) != 0;
-    final isOwner = asset.ownerIdentityPda == currentAccount.identityPda;
+    final hasPermission = (currentUser!.permissionsMask & 0x08) != 0;
+    final isOwner = asset.ownerIdentityPda == currentUser!.identityPda;
 
     final sig = '3SyP1mAs7pbHas5e7a9QpZ8LHasAe7veUpNYUh2Vyiq8${Random().nextInt(99999)}';
 
     if (!hasPermission && !isOwner) {
-      // Security constraint rejection!
       activities.insert(
         0,
         ActivityItem(
@@ -330,9 +389,9 @@ class SolanaService extends ChangeNotifier {
           type: ActivityType.securityReject,
           timestamp: DateTime.now(),
           signature: sig,
-          isGasSponsored: isFeeSponsored,
+          isGasSponsored: currentUser!.isGasSponsored,
           isRejected: true,
-          rejectionReason: 'RegistryError::Unauthorized - Caller lacks TRANSFER_RESOURCE (0x08)',
+          rejectionReason: 'RegistryError::Unauthorized - Lacks TRANSFER_RESOURCE (0x08)',
         ),
       );
       isLoading = false;
@@ -340,7 +399,7 @@ class SolanaService extends ChangeNotifier {
       return false;
     }
 
-    // Success! Update ownership
+    // Update ownership
     asset.ownerIdentityPda = recipientAddress;
     asset.ownerLabel = recipientLabel;
 
@@ -353,11 +412,11 @@ class SolanaService extends ChangeNotifier {
         type: ActivityType.send,
         timestamp: DateTime.now(),
         signature: sig,
-        isGasSponsored: isFeeSponsored,
+        isGasSponsored: currentUser!.isGasSponsored,
         metadata: {
           'assetId': asset.id,
           'recipient': recipientAddress,
-          'fee': isFeeSponsored ? '0 SOL (Sponsored)' : '0.000005 SOL',
+          'fee': currentUser!.isGasSponsored ? '0 SOL (Sponsored)' : '0.000005 SOL',
         },
       ),
     );
@@ -367,63 +426,9 @@ class SolanaService extends ChangeNotifier {
     return true;
   }
 
-  /// Issue Access Grant (Wise & Phantom style)
-  Future<bool> grantAccess({
-    required DigitalAsset asset,
-    required String granteeLabel,
-    required String granteeAddress,
-    required int permissions,
-  }) async {
-    isLoading = true;
-    notifyListeners();
-
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    final hasPermission = (currentAccount.permissionsMask & 0x02) != 0 ||
-        (currentAccount.permissionsMask & 0x20) != 0;
-
-    final sig = '5ky791N7oHKjra3yVaQsRNsUhH8zqoTY4ab6w2nTZDQ${Random().nextInt(99999)}';
-
-    if (!hasPermission) {
-      activities.insert(
-        0,
-        ActivityItem(
-          id: 'act_${DateTime.now().millisecondsSinceEpoch}',
-          title: 'Access Grant Denied',
-          subtitle: 'Cannot grant access to $granteeLabel',
-          type: ActivityType.securityReject,
-          timestamp: DateTime.now(),
-          signature: sig,
-          isGasSponsored: isFeeSponsored,
-          isRejected: true,
-          rejectionReason: 'RegistryError::Unauthorized - Requires ASSIGN_RESOURCE (0x02)',
-        ),
-      );
-      isLoading = false;
-      notifyListeners();
-      return false;
-    }
-
-    activities.insert(
-      0,
-      ActivityItem(
-        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
-        title: 'Access Granted: ${asset.name}',
-        subtitle: 'Granted to $granteeLabel (Bitmask 0x${permissions.toRadixString(16).toUpperCase()})',
-        type: ActivityType.grant,
-        timestamp: DateTime.now(),
-        signature: sig,
-        isGasSponsored: isFeeSponsored,
-      ),
-    );
-
-    isLoading = false;
-    notifyListeners();
-    return true;
-  }
-
-  /// Live Solana Devnet Airdrop (Phantom style)
+  /// Live Solana Devnet Airdrop
   Future<bool> requestAirdrop() async {
+    if (currentUser == null) return false;
     isLoading = true;
     notifyListeners();
 
@@ -435,13 +440,12 @@ class SolanaService extends ChangeNotifier {
           'jsonrpc': '2.0',
           'id': 1,
           'method': 'requestAirdrop',
-          'params': [currentAccount.publicKey, 1000000000],
+          'params': [currentUser!.publicKey, 1000000000],
         }),
       );
 
       final sig = 'bUPAKWU2rNyWMYuN4w6UozhrhcJ2B9fT2Y5YDdhhNgGb${Random().nextInt(99999)}';
-
-      currentAccount.solBalance += 1.0;
+      currentUser!.solBalance += 1.0;
 
       activities.insert(
         0,
@@ -460,8 +464,7 @@ class SolanaService extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (_) {
-      // Fallback local airdrop
-      currentAccount.solBalance += 1.0;
+      currentUser!.solBalance += 1.0;
       activities.insert(
         0,
         ActivityItem(

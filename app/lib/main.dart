@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/auth_screen.dart';
 import 'services/solana_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/wallet_header.dart';
@@ -20,21 +21,20 @@ class SolanaIdentityApp extends StatelessWidget {
       title: 'Solana Identity & Wallet',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const ConsumerDashboard(),
+      home: const AppRoot(),
     );
   }
 }
 
-class ConsumerDashboard extends StatefulWidget {
-  const ConsumerDashboard({super.key});
+class AppRoot extends StatefulWidget {
+  const AppRoot({super.key});
 
   @override
-  State<ConsumerDashboard> createState() => _ConsumerDashboardState();
+  State<AppRoot> createState() => _AppRootState();
 }
 
-class _ConsumerDashboardState extends State<ConsumerDashboard> {
+class _AppRootState extends State<AppRoot> {
   final SolanaService _solanaService = SolanaService();
-  int _currentTab = 0;
 
   @override
   void initState() {
@@ -46,9 +46,32 @@ class _ConsumerDashboardState extends State<ConsumerDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_solanaService.isAuthenticated) {
+      return AuthScreen(service: _solanaService);
+    }
+    return ConsumerDashboard(service: _solanaService);
+  }
+}
+
+class ConsumerDashboard extends StatefulWidget {
+  final SolanaService service;
+
+  const ConsumerDashboard({super.key, required this.service});
+
+  @override
+  State<ConsumerDashboard> createState() => _ConsumerDashboardState();
+}
+
+class _ConsumerDashboardState extends State<ConsumerDashboard> {
+  int _currentTab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final service = widget.service;
+
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
-      appBar: WalletHeader(service: _solanaService),
+      appBar: WalletHeader(service: service),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -57,20 +80,20 @@ class _ConsumerDashboardState extends State<ConsumerDashboard> {
             children: [
               if (_currentTab == 0) ...[
                 // Home: Balance Hero, Quick Actions, Assets, Recent Activity
-                BalanceCard(service: _solanaService),
+                BalanceCard(service: service),
                 const SizedBox(height: 18),
-                DigitalAssetsView(service: _solanaService),
+                DigitalAssetsView(service: service),
                 const SizedBox(height: 20),
-                ActivityFeedView(service: _solanaService),
+                ActivityFeedView(service: service),
               ] else if (_currentTab == 1) ...[
                 // Assets Tab
-                DigitalAssetsView(service: _solanaService),
+                DigitalAssetsView(service: service),
               ] else if (_currentTab == 2) ...[
                 // Identity Pass & RBAC Tab
-                IdentityPassView(service: _solanaService),
+                IdentityPassView(service: service),
               ] else ...[
                 // Activity Tab
-                ActivityFeedView(service: _solanaService),
+                ActivityFeedView(service: service),
               ],
               const SizedBox(height: 24),
             ],

@@ -1,25 +1,33 @@
 import 'package:flutter/material.dart';
 
-/// Represents a connected Solana wallet account
-class WalletAccount {
-  final String label;
+enum AuthProvider { google, workEmail }
+
+/// Represents the authenticated real-world user profile
+class UserProfile {
+  final String name;
+  final String email;
+  final AuthProvider authProvider;
+  final String companyDomain;
   final String publicKey;
   final String identityPda;
   final String role;
   final int permissionsMask;
   double solBalance;
   final Color avatarColor;
-  final bool isSponsored;
+  final bool isGasSponsored;
 
-  WalletAccount({
-    required this.label,
+  UserProfile({
+    required this.name,
+    required this.email,
+    required this.authProvider,
+    required this.companyDomain,
     required this.publicKey,
     required this.identityPda,
     required this.role,
     required this.permissionsMask,
     this.solBalance = 0.0,
     required this.avatarColor,
-    this.isSponsored = true,
+    this.isGasSponsored = true,
   });
 
   String get shortPublicKey {
@@ -30,6 +38,15 @@ class WalletAccount {
   String get shortIdentityPda {
     if (identityPda.length <= 10) return identityPda;
     return '${identityPda.substring(0, 4)}...${identityPda.substring(identityPda.length - 4)}';
+  }
+
+  String get providerDisplayName {
+    switch (authProvider) {
+      case AuthProvider.google:
+        return 'Google OAuth';
+      case AuthProvider.workEmail:
+        return 'Work Email SSO ($companyDomain)';
+    }
   }
 }
 
@@ -68,7 +85,7 @@ class DigitalAsset {
 }
 
 /// Human-readable transaction activity item (Wise & Phantom style)
-enum ActivityType { send, receive, grant, airdrop, securityReject, deploy }
+enum ActivityType { send, receive, grant, airdrop, securityReject, deploy, auth }
 
 class ActivityItem {
   final String id;
@@ -112,7 +129,7 @@ class ActivityItem {
   String get explorerUrl => 'https://explorer.solana.com/tx/$signature?cluster=devnet';
 }
 
-/// Self-Sovereign Identity permission model
+/// Self-Sovereign Identity permission item
 class PermissionItem {
   final String name;
   final int mask;
