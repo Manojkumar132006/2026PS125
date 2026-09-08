@@ -10,11 +10,12 @@ class UserProfile {
   final String companyDomain;
   final String publicKey;
   final String identityPda;
-  final String role;
-  final int permissionsMask;
+  String role;
+  int permissionsMask;
   double solBalance;
   final Color avatarColor;
   final bool isGasSponsored;
+  String activeOrgId;
 
   UserProfile({
     required this.name,
@@ -28,7 +29,10 @@ class UserProfile {
     this.solBalance = 0.0,
     required this.avatarColor,
     this.isGasSponsored = true,
+    this.activeOrgId = 'org_acme_corp',
   });
+
+  bool get isAdmin => (permissionsMask & 0x20) != 0 || role.toLowerCase().contains('admin');
 
   String get shortPublicKey {
     if (publicKey.length <= 10) return publicKey;
@@ -143,3 +147,74 @@ class PermissionItem {
     required this.isGranted,
   });
 }
+
+/// Represents an on-chain registered organization
+class OrganizationModel {
+  final String id;
+  final String name;
+  final String domain;
+  final String authorityPda;
+  final String description;
+  double treasuryBalance;
+  final bool isSponsoring;
+  int memberCount;
+  int assetCount;
+  final String inviteCode;
+  final DateTime createdAt;
+  final Color brandColor;
+
+  OrganizationModel({
+    required this.id,
+    required this.name,
+    required this.domain,
+    required this.authorityPda,
+    required this.description,
+    this.treasuryBalance = 25.0,
+    this.isSponsoring = true,
+    this.memberCount = 1,
+    this.assetCount = 0,
+    required this.inviteCode,
+    required this.createdAt,
+    this.brandColor = const Color(0xFF6366F1),
+  });
+
+  String get shortAuthority {
+    if (authorityPda.length <= 12) return authorityPda;
+    return '${authorityPda.substring(0, 6)}...${authorityPda.substring(authorityPda.length - 4)}';
+  }
+}
+
+/// Represents a member within an organization with role and RBAC bitmask
+class OrgMember {
+  final String id;
+  final String name;
+  final String email;
+  String role;
+  int roleId;
+  int permissionsMask;
+  final Color avatarColor;
+  final DateTime joinedAt;
+  String status; // 'active', 'invited', 'suspended'
+  final String identityPda;
+
+  OrgMember({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.roleId,
+    required this.permissionsMask,
+    required this.avatarColor,
+    required this.joinedAt,
+    this.status = 'active',
+    required this.identityPda,
+  });
+
+  String get shortIdentityPda {
+    if (identityPda.length <= 12) return identityPda;
+    return '${identityPda.substring(0, 6)}...${identityPda.substring(identityPda.length - 4)}';
+  }
+
+  bool hasPermission(int bitmask) => (permissionsMask & bitmask) != 0;
+}
+

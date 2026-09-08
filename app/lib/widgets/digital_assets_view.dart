@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/models.dart';
 import '../services/solana_service.dart';
 import '../theme/app_theme.dart';
+import 'create_asset_modal.dart';
 import 'transfer_modal.dart';
 
 class DigitalAssetsView extends StatefulWidget {
@@ -22,6 +23,8 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
     final myAssets = widget.service.myAssets;
     final allAssets = widget.service.assets;
     final displayedAssets = _selectedFilter == 0 ? myAssets : allAssets;
+    final canCreate = (widget.service.currentUser?.permissionsMask ?? 0) & 0x01 != 0 ||
+        (widget.service.currentUser?.isAdmin ?? false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,27 +41,53 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
                 color: AppColors.textMain,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: AppColors.bgSecondary,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  _FilterTab(
-                    label: 'Mine (${myAssets.length})',
-                    isSelected: _selectedFilter == 0,
-                    onTap: () => setState(() => _selectedFilter = 0),
-                  ),
-                  _FilterTab(
-                    label: 'All (${allAssets.length})',
-                    isSelected: _selectedFilter == 1,
-                    onTap: () => setState(() => _selectedFilter = 1),
+            Row(
+              children: [
+                if (canCreate) ...[
+                  InkWell(
+                    onTap: () => showCreateAssetModal(context, widget.service),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.cyan.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.cyan.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.add_rounded, size: 14, color: AppColors.cyan),
+                          SizedBox(width: 2),
+                          Text('Mint', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.cyan)),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ),
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      _FilterTab(
+                        label: 'Mine (${myAssets.length})',
+                        isSelected: _selectedFilter == 0,
+                        onTap: () => setState(() => _selectedFilter = 0),
+                      ),
+                      _FilterTab(
+                        label: 'All (${allAssets.length})',
+                        isSelected: _selectedFilter == 1,
+                        onTap: () => setState(() => _selectedFilter = 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

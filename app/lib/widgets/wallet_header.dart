@@ -76,7 +76,7 @@ class WalletHeader extends StatelessWidget implements PreferredSizeWidget {
                       ],
                     ),
                     Text(
-                      user.email,
+                      '${user.email} • ${service.currentOrg?.name ?? user.companyDomain}',
                       style: const TextStyle(fontSize: 11, color: AppColors.textDim),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -228,6 +228,8 @@ class WalletHeader extends StatelessWidget implements PreferredSizeWidget {
                     _ProfileKeyRow(label: 'Public Key', value: user.publicKey),
                     const Divider(height: 16, color: AppColors.border),
                     _ProfileKeyRow(label: 'Identity PDA', value: user.identityPda),
+                    const Divider(height: 16, color: AppColors.border),
+                    _ProfileKeyRow(label: 'Organization', value: '${service.currentOrg?.name ?? user.companyDomain} (${service.currentOrg?.domain ?? ""})', isKey: false),
                     const Divider(height: 16, color: AppColors.border),
                     _ProfileKeyRow(label: 'Role', value: '${user.role} (0x${user.permissionsMask.toRadixString(16).toUpperCase()})', isKey: false),
                   ],

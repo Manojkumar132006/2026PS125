@@ -6,6 +6,7 @@ import 'widgets/wallet_header.dart';
 import 'widgets/balance_card.dart';
 import 'widgets/digital_assets_view.dart';
 import 'widgets/identity_pass_view.dart';
+import 'widgets/admin_hub_view.dart';
 import 'widgets/activity_feed_view.dart';
 
 void main() {
@@ -91,6 +92,9 @@ class _ConsumerDashboardState extends State<ConsumerDashboard> {
               ] else if (_currentTab == 2) ...[
                 // Identity Pass & RBAC Tab
                 IdentityPassView(service: service),
+              ] else if (_currentTab == 3) ...[
+                // Admin Hub & Governance Tab
+                AdminHubView(service: service),
               ] else ...[
                 // Activity Tab
                 ActivityFeedView(service: service),
@@ -122,6 +126,11 @@ class _ConsumerDashboardState extends State<ConsumerDashboard> {
             icon: Icon(Icons.badge_outlined, size: 20),
             selectedIcon: Icon(Icons.badge_rounded, color: AppColors.primaryLight, size: 20),
             label: 'Identity',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined, size: 20),
+            selectedIcon: Icon(Icons.admin_panel_settings_rounded, color: AppColors.primaryLight, size: 20),
+            label: 'Admin',
           ),
           const NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined, size: 20),

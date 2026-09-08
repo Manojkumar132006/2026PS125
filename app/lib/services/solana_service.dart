@@ -21,6 +21,10 @@ class SolanaService extends ChangeNotifier {
   bool isConnected = true;
   int currentSlot = 0;
 
+  // Organizations State
+  final List<OrganizationModel> organizations = [];
+  final Map<String, List<OrgMember>> orgMembers = {};
+
   // Digital Assets Owned & Managed
   late List<DigitalAsset> assets;
 
@@ -28,9 +32,132 @@ class SolanaService extends ChangeNotifier {
   final List<ActivityItem> activities = [];
 
   SolanaService() {
+    _initializeOrganizations();
     _initializeAssets();
     _seedSystemActivities();
     checkConnection();
+  }
+
+  void _initializeOrganizations() {
+    organizations.addAll([
+      OrganizationModel(
+        id: 'org_acme_corp',
+        name: 'Acme Corporation',
+        domain: 'acmecorp.com',
+        authorityPda: 'org_auth_9xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ',
+        description: 'Decentralized cloud infrastructure & enterprise AI services.',
+        treasuryBalance: 25.0,
+        isSponsoring: true,
+        memberCount: 4,
+        assetCount: 3,
+        inviteCode: 'ACME-8921',
+        createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        brandColor: const Color(0xFF6366F1),
+      ),
+      OrganizationModel(
+        id: 'org_solana_labs',
+        name: 'Solana Labs Enterprise',
+        domain: 'solanalabs.com',
+        authorityPda: 'org_auth_5aRts89Lq0Kw7YpM2nQv8rTxLm3sDp',
+        description: 'Next-generation blockchain infrastructure and validator operations.',
+        treasuryBalance: 50.0,
+        isSponsoring: true,
+        memberCount: 12,
+        assetCount: 8,
+        inviteCode: 'SOL-4190',
+        createdAt: DateTime.now().subtract(const Duration(days: 60)),
+        brandColor: const Color(0xFF06B6D4),
+      ),
+      OrganizationModel(
+        id: 'org_cyberdyne',
+        name: 'Cyberdyne Systems',
+        domain: 'cyberdyne.io',
+        authorityPda: 'org_auth_8bXym3Kp29v5yTkMn2qWv8pRxLm3sD',
+        description: 'Autonomous robotics, neural nets, and hardware enclave credentials.',
+        treasuryBalance: 15.0,
+        isSponsoring: true,
+        memberCount: 6,
+        assetCount: 2,
+        inviteCode: 'CYBER-2049',
+        createdAt: DateTime.now().subtract(const Duration(days: 15)),
+        brandColor: const Color(0xFF10B981),
+      ),
+    ]);
+
+    orgMembers['org_acme_corp'] = [
+      OrgMember(
+        id: 'mem_elena',
+        name: 'Elena Rostova',
+        email: 'elena.rostova@acmecorp.com',
+        role: 'Asset Manager',
+        roleId: 2,
+        permissionsMask: 0x2F,
+        avatarColor: const Color(0xFFA855F7),
+        joinedAt: DateTime.now().subtract(const Duration(days: 20)),
+        identityPda: 'id_pda_elena_r9xQw7YpM2n',
+      ),
+      OrgMember(
+        id: 'mem_marcus',
+        name: 'Marcus Vance',
+        email: 'marcus.vance@acmecorp.com',
+        role: 'Auditor',
+        roleId: 3,
+        permissionsMask: 0x24,
+        avatarColor: const Color(0xFFF59E0B),
+        joinedAt: DateTime.now().subtract(const Duration(days: 12)),
+        identityPda: 'id_pda_marcus_v5aRts89L',
+      ),
+      OrgMember(
+        id: 'mem_sarah',
+        name: 'Sarah Chen',
+        email: 'sarah.chen@acme.com',
+        role: 'Enterprise Member',
+        roleId: 4,
+        permissionsMask: 0x0F,
+        avatarColor: const Color(0xFF06B6D4),
+        joinedAt: DateTime.now().subtract(const Duration(days: 5)),
+        identityPda: 'id_pda_sarah_c8bXym3Kp',
+      ),
+    ];
+
+    orgMembers['org_solana_labs'] = [
+      OrgMember(
+        id: 'mem_anatoly',
+        name: 'Anatoly Yakovenko',
+        email: 'anatoly@solanalabs.com',
+        role: 'Admin',
+        roleId: 1,
+        permissionsMask: 0x3F,
+        avatarColor: const Color(0xFF06B6D4),
+        joinedAt: DateTime.now().subtract(const Duration(days: 60)),
+        identityPda: 'id_pda_anatoly_sol',
+      ),
+      OrgMember(
+        id: 'mem_raj',
+        name: 'Raj Gokal',
+        email: 'raj@solanalabs.com',
+        role: 'Admin',
+        roleId: 1,
+        permissionsMask: 0x3F,
+        avatarColor: const Color(0xFF6366F1),
+        joinedAt: DateTime.now().subtract(const Duration(days: 55)),
+        identityPda: 'id_pda_raj_sol',
+      ),
+    ];
+
+    orgMembers['org_cyberdyne'] = [
+      OrgMember(
+        id: 'mem_miles',
+        name: 'Miles Dyson',
+        email: 'miles@cyberdyne.io',
+        role: 'Admin',
+        roleId: 1,
+        permissionsMask: 0x3F,
+        avatarColor: const Color(0xFF10B981),
+        joinedAt: DateTime.now().subtract(const Duration(days: 15)),
+        identityPda: 'id_pda_miles_cyber',
+      ),
+    ];
   }
 
   void _seedSystemActivities() {
@@ -311,6 +438,46 @@ class SolanaService extends ChangeNotifier {
     ];
   }
 
+  OrganizationModel? get currentOrg {
+    final orgId = currentUser?.activeOrgId ?? 'org_acme_corp';
+    return organizations.firstWhere(
+      (o) => o.id == orgId,
+      orElse: () => organizations.isNotEmpty
+          ? organizations.first
+          : OrganizationModel(
+              id: 'org_default',
+              name: 'Acme Corporation',
+              domain: 'acmecorp.com',
+              authorityPda: 'org_auth_default',
+              description: 'Decentralized cloud infrastructure',
+              inviteCode: 'ACME-1000',
+              createdAt: DateTime.now(),
+            ),
+    );
+  }
+
+  List<OrgMember> get currentOrgMembers {
+    final orgId = currentOrg?.id ?? 'org_acme_corp';
+    final members = orgMembers[orgId] ?? [];
+    if (currentUser != null && !members.any((m) => m.email == currentUser!.email)) {
+      members.insert(
+        0,
+        OrgMember(
+          id: 'mem_self_${currentUser!.email.replaceAll('@', '_')}',
+          name: '${currentUser!.name} (You)',
+          email: currentUser!.email,
+          role: currentUser!.role,
+          roleId: currentUser!.isAdmin ? 1 : 2,
+          permissionsMask: currentUser!.permissionsMask,
+          avatarColor: currentUser!.avatarColor,
+          joinedAt: DateTime.now(),
+          identityPda: currentUser!.identityPda,
+        ),
+      );
+    }
+    return members;
+  }
+
   // --- Network & RPC ---
 
   Future<void> checkConnection() async {
@@ -482,4 +649,454 @@ class SolanaService extends ChangeNotifier {
       return true;
     }
   }
+
+  // --- Organization & Admin Role Operations ---
+
+  /// Create a new Organization PDA on Solana Devnet
+  Future<bool> createOrganization({
+    required String name,
+    required String domain,
+    required double initialDepositSol,
+    required String description,
+  }) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 750));
+
+    final orgId = 'org_${domain.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
+    final authorityPda = 'org_auth_${_deriveSolanaPublicKey(currentUser!.email).substring(0, 16)}';
+    final codePrefix = name.trim().replaceAll(' ', '').toUpperCase();
+    final inviteCode = '${codePrefix.substring(0, min(4, codePrefix.length))}-${Random().nextInt(8999) + 1000}';
+
+    final newOrg = OrganizationModel(
+      id: orgId,
+      name: name.trim(),
+      domain: domain.trim().toLowerCase(),
+      authorityPda: authorityPda,
+      description: description.trim(),
+      treasuryBalance: initialDepositSol,
+      isSponsoring: true,
+      memberCount: 1,
+      assetCount: 0,
+      inviteCode: inviteCode,
+      createdAt: DateTime.now(),
+      brandColor: const Color(0xFF6366F1),
+    );
+
+    organizations.insert(0, newOrg);
+
+    // Current user is the Organization Authority and Super Admin
+    currentUser!.role = 'Super Admin';
+    currentUser!.permissionsMask = 0x3F; // 111111b: All permissions
+    currentUser!.activeOrgId = orgId;
+
+    orgMembers[orgId] = [
+      OrgMember(
+        id: 'mem_${currentUser!.email.replaceAll('@', '_')}',
+        name: '${currentUser!.name} (You)',
+        email: currentUser!.email,
+        role: 'Super Admin',
+        roleId: 1,
+        permissionsMask: 0x3F,
+        avatarColor: currentUser!.avatarColor,
+        joinedAt: DateTime.now(),
+        identityPda: currentUser!.identityPda,
+      ),
+    ];
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Created Organization: ${newOrg.name}',
+        subtitle: '${newOrg.domain} • Authority PDA ($authorityPda) Initialized',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '2OrgInit${Random().nextInt(999999)}PqFm93Xv7B',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Join an existing Organization by domain or invite code
+  Future<bool> joinOrganization({required String domainOrCode}) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 650));
+
+    final query = domainOrCode.trim().toLowerCase();
+    OrganizationModel? targetOrg;
+
+    for (final org in organizations) {
+      if (org.id.toLowerCase() == query ||
+          org.domain.toLowerCase() == query ||
+          org.inviteCode.toLowerCase() == query ||
+          org.name.toLowerCase().contains(query)) {
+        targetOrg = org;
+        break;
+      }
+    }
+
+    // If not found in default list, create dynamic verified org from domain
+    if (targetOrg == null) {
+      if (query.contains('.')) {
+        final cleanDomain = query;
+        final namePart = cleanDomain.split('.')[0];
+        final orgName = '${namePart[0].toUpperCase()}${namePart.substring(1)} Corp';
+        targetOrg = OrganizationModel(
+          id: 'org_${cleanDomain.replaceAll('.', '_')}',
+          name: orgName,
+          domain: cleanDomain,
+          authorityPda: 'org_auth_${_deriveSolanaPublicKey(cleanDomain).substring(0, 16)}',
+          description: 'Verified enterprise workspace for $cleanDomain',
+          treasuryBalance: 20.0,
+          isSponsoring: true,
+          memberCount: 1,
+          assetCount: 0,
+          inviteCode: '${namePart.substring(0, min(4, namePart.length)).toUpperCase()}-7721',
+          createdAt: DateTime.now(),
+          brandColor: const Color(0xFF06B6D4),
+        );
+        organizations.add(targetOrg);
+        orgMembers[targetOrg.id] = [];
+      } else {
+        isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    }
+
+    currentUser!.activeOrgId = targetOrg.id;
+    final members = orgMembers[targetOrg.id] ??= [];
+
+    if (!members.any((m) => m.email == currentUser!.email)) {
+      members.add(
+        OrgMember(
+          id: 'mem_${currentUser!.email.replaceAll('@', '_')}',
+          name: '${currentUser!.name} (You)',
+          email: currentUser!.email,
+          role: 'Enterprise Member',
+          roleId: 4,
+          permissionsMask: 0x0F,
+          avatarColor: currentUser!.avatarColor,
+          joinedAt: DateTime.now(),
+          identityPda: currentUser!.identityPda,
+        ),
+      );
+      targetOrg.memberCount++;
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Joined Organization: ${targetOrg.name}',
+        subtitle: '${targetOrg.domain} • Identity registered on Devnet',
+        type: ActivityType.auth,
+        timestamp: DateTime.now(),
+        signature: '3OrgJoin${Random().nextInt(999999)}Lk82Mm',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Switch active organization
+  void switchOrganization(String orgId) {
+    if (currentUser == null) return;
+    final targetOrg = organizations.firstWhere((o) => o.id == orgId, orElse: () => organizations.first);
+    currentUser!.activeOrgId = targetOrg.id;
+
+    // Check user's role in this organization
+    final members = orgMembers[targetOrg.id] ?? [];
+    final userMember = members.firstWhere(
+      (m) => m.email == currentUser!.email,
+      orElse: () => OrgMember(
+        id: 'mem_${currentUser!.email.replaceAll('@', '_')}',
+        name: currentUser!.name,
+        email: currentUser!.email,
+        role: 'Enterprise Member',
+        roleId: 4,
+        permissionsMask: 0x0F,
+        avatarColor: currentUser!.avatarColor,
+        joinedAt: DateTime.now(),
+        identityPda: currentUser!.identityPda,
+      ),
+    );
+
+    currentUser!.role = userMember.role;
+    currentUser!.permissionsMask = userMember.permissionsMask;
+
+    notifyListeners();
+  }
+
+  /// Invite a new member and assign an initial RBAC role
+  Future<bool> inviteMember({
+    required String name,
+    required String email,
+    required String role,
+    required int permissionsMask,
+  }) async {
+    if (currentUser == null) return false;
+    if (!currentUser!.isAdmin) return false;
+
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 650));
+
+    final org = currentOrg;
+    if (org == null) {
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    final pubkey = _deriveSolanaPublicKey(email);
+    final identityPda = _deriveIdentityPda(pubkey);
+
+    int roleId = 4;
+    Color avatarColor = const Color(0xFF6366F1);
+    if (role.toLowerCase().contains('admin')) {
+      roleId = 1;
+      avatarColor = const Color(0xFFF43F5E);
+    } else if (role.toLowerCase().contains('asset manager')) {
+      roleId = 2;
+      avatarColor = const Color(0xFFA855F7);
+    } else if (role.toLowerCase().contains('auditor')) {
+      roleId = 3;
+      avatarColor = const Color(0xFFF59E0B);
+    }
+
+    final newMember = OrgMember(
+      id: 'mem_${DateTime.now().millisecondsSinceEpoch}',
+      name: name.trim(),
+      email: email.trim(),
+      role: role,
+      roleId: roleId,
+      permissionsMask: permissionsMask,
+      avatarColor: avatarColor,
+      joinedAt: DateTime.now(),
+      status: 'active',
+      identityPda: identityPda,
+    );
+
+    final members = orgMembers[org.id] ??= [];
+    members.add(newMember);
+    org.memberCount++;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Invited Member: ${newMember.name}',
+        subtitle: '${newMember.email} assigned role $role (0x${permissionsMask.toRadixString(16).toUpperCase()})',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '4MemInv${Random().nextInt(999999)}BwQ82p',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Update an existing member's role and RBAC bitmask
+  Future<bool> updateMemberRole({
+    required String memberId,
+    required String newRole,
+    required int newMask,
+  }) async {
+    if (currentUser == null) return false;
+    if (!currentUser!.isAdmin) return false;
+
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 550));
+
+    final members = currentOrgMembers;
+    final member = members.firstWhere((m) => m.id == memberId, orElse: () => members.first);
+
+    member.role = newRole;
+    member.permissionsMask = newMask;
+
+    // If updating self
+    if (member.email == currentUser!.email) {
+      currentUser!.role = newRole;
+      currentUser!.permissionsMask = newMask;
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Role Updated On-Chain',
+        subtitle: '${member.name} → $newRole (0x${newMask.toRadixString(16).toUpperCase()})',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '5RoleUp${Random().nextInt(999999)}JkQ52a',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Mint and register a new program-owned PDA digital asset
+  Future<bool> createDigitalAsset({
+    required String name,
+    required String type,
+    required String description,
+    required String ownerIdentityPda,
+    required String ownerLabel,
+    required Color accentColor,
+    required IconData icon,
+    required int requiredPermission,
+  }) async {
+    if (currentUser == null) return false;
+    final canCreate = (currentUser!.permissionsMask & 0x01) != 0 || currentUser!.isAdmin;
+    if (!canCreate) return false;
+
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    final pda = 'res_pda_${_deriveSolanaPublicKey(name).substring(0, 16)}';
+
+    final newAsset = DigitalAsset(
+      id: 'res_${DateTime.now().millisecondsSinceEpoch}',
+      name: name.trim(),
+      type: type,
+      pdaAddress: pda,
+      ownerIdentityPda: ownerIdentityPda,
+      ownerLabel: ownerLabel,
+      description: description.trim(),
+      accentColor: accentColor,
+      icon: icon,
+      requiredPermission: requiredPermission,
+    );
+
+    assets.insert(0, newAsset);
+    currentOrg?.assetCount++;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Minted Asset PDA: ${newAsset.name}',
+        subtitle: 'Assigned to $ownerLabel (0 SOL Gas)',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '6AstMint${Random().nextInt(999999)}ZzP281',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Revoke and freeze a program-owned PDA digital asset
+  Future<bool> revokeDigitalAsset(String assetId) async {
+    if (currentUser == null) return false;
+    final canRevoke = (currentUser!.permissionsMask & 0x10) != 0 || currentUser!.isAdmin;
+    if (!canRevoke) return false;
+
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    final asset = assets.firstWhere((a) => a.id == assetId);
+    asset.isRevoked = true;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Revoked Digital Asset',
+        subtitle: '${asset.name} frozen & revoked on Devnet',
+        type: ActivityType.securityReject,
+        timestamp: DateTime.now(),
+        signature: '7AstRev${Random().nextInt(999999)}HhP182',
+        isGasSponsored: true,
+        isRejected: true,
+        rejectionReason: 'Asset PDA revoked by Organization Authority',
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Top up organization gas fee sponsorship treasury
+  Future<bool> topUpTreasury(double amountSol) async {
+    if (currentUser == null || currentOrg == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    currentOrg!.treasuryBalance += amountSol;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Treasury Funded: ◎ ${amountSol.toStringAsFixed(1)} SOL',
+        subtitle: '${currentOrg!.name} gas sponsorship pool updated',
+        type: ActivityType.airdrop,
+        timestamp: DateTime.now(),
+        signature: '8TrsTop${Random().nextInt(999999)}GgW193',
+        isGasSponsored: false,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Quick toggle between Admin role (0x3F) and Asset Manager role (0x2F) for testing
+  void toggleCurrentUserRole() {
+    if (currentUser == null) return;
+    if (currentUser!.isAdmin) {
+      currentUser!.role = 'Asset Manager';
+      currentUser!.permissionsMask = 0x2F;
+    } else {
+      currentUser!.role = 'Super Admin';
+      currentUser!.permissionsMask = 0x3F;
+    }
+
+    final members = orgMembers[currentUser!.activeOrgId];
+    if (members != null) {
+      final userMember = members.where((m) => m.email == currentUser!.email).firstOrNull;
+      if (userMember != null) {
+        userMember.role = currentUser!.role;
+        userMember.permissionsMask = currentUser!.permissionsMask;
+      }
+    }
+
+    notifyListeners();
+  }
 }
+
