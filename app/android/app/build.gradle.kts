@@ -8,8 +8,13 @@ plugins {
 }
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
+val keystorePropertiesFile = when {
+    rootProject.file("key.properties").exists() -> rootProject.file("key.properties")
+    project.file("key.properties").exists() -> project.file("key.properties")
+    project.file("src/key.properties").exists() -> project.file("src/key.properties")
+    else -> null
+}
+if (keystorePropertiesFile != null && keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
