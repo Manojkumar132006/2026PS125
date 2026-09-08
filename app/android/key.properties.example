@@ -1,0 +1,4 @@
+storePassword=<password>
+keyPassword=<password>
+keyAlias=release_key
+storeFile=release.keystore
