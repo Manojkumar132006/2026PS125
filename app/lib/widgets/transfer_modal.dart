@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/biometric_service.dart';
 import '../services/solana_service.dart';
 import '../theme/app_theme.dart';
+import 'ownership_provenance_modal.dart';
 
 void showTransferModal(BuildContext context, SolanaService service, {bool isGrantMode = false}) {
   showModalBottomSheet(
@@ -148,7 +149,20 @@ class _TransferSheetState extends State<_TransferSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () {
+                showOwnershipProvenanceModal(context, asset: _selectedAsset, service: widget.service);
+              },
+              icon: const Icon(Icons.history_edu_rounded, size: 16, color: AppColors.cyan),
+              label: const Text('View Immutable Provenance Trail', style: TextStyle(color: AppColors.cyan, fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.cyan),
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 10),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
@@ -242,7 +256,31 @@ class _TransferSheetState extends State<_TransferSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: InkWell(
+              onTap: () {
+                showOwnershipProvenanceModal(context, asset: _selectedAsset, service: widget.service);
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.history_edu_rounded, size: 13, color: AppColors.cyan),
+                    SizedBox(width: 4),
+                    Text(
+                      'View Ownership Provenance',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.cyan),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
 
           // 2. Recipient Input
           const Text('Recipient (Work Email or Solana Public Key)',

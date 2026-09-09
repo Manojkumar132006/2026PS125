@@ -283,4 +283,127 @@ class QuorumConfigModel {
   });
 }
 
+/// Provenance and historical ownership record for digital assets
+class OwnershipRecordModel {
+  final int sequence;
+  final String resourceId;
+  final String resourcePda;
+  final String previousOwnerPda;
+  final String newOwnerPda;
+  final String previousOwnerLabel;
+  final String newOwnerLabel;
+  final String transferredByPubkey;
+  final DateTime timestamp;
+  final String transferType; // 'Genesis Mint', 'Biometric P2P Transfer', 'Admin Assignment', 'Role-Gated Transfer'
+  final String txSignature;
+  final bool isBiometricVerified;
+  final bool isGasSponsored;
+
+  OwnershipRecordModel({
+    required this.sequence,
+    required this.resourceId,
+    required this.resourcePda,
+    required this.previousOwnerPda,
+    required this.newOwnerPda,
+    required this.previousOwnerLabel,
+    required this.newOwnerLabel,
+    required this.transferredByPubkey,
+    required this.timestamp,
+    required this.transferType,
+    required this.txSignature,
+    this.isBiometricVerified = true,
+    this.isGasSponsored = true,
+  });
+
+  String get shortTxSignature {
+    if (txSignature.length <= 12) return txSignature;
+    return '${txSignature.substring(0, 6)}...${txSignature.substring(txSignature.length - 6)}';
+  }
+
+  String get shortPreviousOwner {
+    if (previousOwnerPda.isEmpty || previousOwnerPda == '11111111111111111111111111111111') return 'Genesis (Minted)';
+    if (previousOwnerPda.length <= 10) return previousOwnerPda;
+    return '${previousOwnerPda.substring(0, 4)}...${previousOwnerPda.substring(previousOwnerPda.length - 4)}';
+  }
+
+  String get shortNewOwner {
+    if (newOwnerPda.length <= 10) return newOwnerPda;
+    return '${newOwnerPda.substring(0, 4)}...${newOwnerPda.substring(newOwnerPda.length - 4)}';
+  }
+}
+
+/// Custom Role definition with granular permissions bitmask
+class CustomRoleModel {
+  final int roleId;
+  final String name;
+  final String description;
+  final int permissionsMask;
+  final Color color;
+  final bool isSystemRole;
+  final int memberCount;
+
+  CustomRoleModel({
+    required this.roleId,
+    required this.name,
+    required this.description,
+    required this.permissionsMask,
+    this.color = const Color(0xFF6366F1),
+    this.isSystemRole = false,
+    this.memberCount = 0,
+  });
+
+  bool hasPermission(int flag) => (permissionsMask & flag) != 0;
+}
+
+/// Workgroup / Team within an Organization with inherited custom roles
+class TeamModel {
+  final String id;
+  final String name;
+  final String description;
+  final List<int> assignedRoleIds;
+  int permissionsMask;
+  final Color color;
+  final DateTime createdAt;
+  final List<String> memberNames;
+  final List<String> memberIdentities;
+
+  TeamModel({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.assignedRoleIds,
+    required this.permissionsMask,
+    this.color = const Color(0xFF3B82F6),
+    required this.createdAt,
+    this.memberNames = const [],
+    this.memberIdentities = const [],
+  });
+
+  int get memberCount => memberNames.length;
+}
+
+/// Identity Recovery status and configuration
+class IdentityRecoveryModel {
+  final String identityPda;
+  final List<String> guardians;
+  final int threshold;
+  final bool isConfigured;
+  final String? activeRecoveryNewController;
+  final int approvalCount;
+  final bool isInProgress;
+  final List<String> approvedGuardians;
+
+  IdentityRecoveryModel({
+    required this.identityPda,
+    required this.guardians,
+    this.threshold = 2,
+    this.isConfigured = true,
+    this.activeRecoveryNewController,
+    this.approvalCount = 0,
+    this.isInProgress = false,
+    this.approvedGuardians = const [],
+  });
+}
+
+
 

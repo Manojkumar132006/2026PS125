@@ -35,10 +35,24 @@ class SolanaService extends ChangeNotifier {
   final List<ConsensusProposalModel> proposals = [];
   late QuorumConfigModel quorumConfig;
 
+  // Provenance & Ownership Tracking (AssetId -> History)
+  final Map<String, List<OwnershipRecordModel>> ownershipRecords = {};
+
+  // Custom Roles & Teams Architecture
+  final List<CustomRoleModel> customRoles = [];
+  final List<TeamModel> teams = [];
+
+  // Identity Recovery Protocol
+  late IdentityRecoveryModel identityRecovery;
+
   SolanaService() {
     _initializeOrganizations();
     _initializeAssets();
     _initializePoAConsensus();
+    _initializeProvenance();
+    _initializeCustomRoles();
+    _initializeTeams();
+    _initializeIdentityRecovery();
     _seedSystemActivities();
     checkConnection();
   }
@@ -372,10 +386,46 @@ class SolanaService extends ChangeNotifier {
     if (assets.isNotEmpty) {
       assets[0].ownerIdentityPda = identityPda;
       assets[0].ownerLabel = '$userLabel (Me)';
+      final history0 = ownershipRecords[assets[0].id];
+      if (history0 != null && history0.isNotEmpty) {
+        history0.last = OwnershipRecordModel(
+          sequence: history0.last.sequence,
+          resourceId: history0.last.resourceId,
+          resourcePda: history0.last.resourcePda,
+          previousOwnerPda: history0.last.previousOwnerPda,
+          newOwnerPda: identityPda,
+          previousOwnerLabel: history0.last.previousOwnerLabel,
+          newOwnerLabel: '$userLabel (Me)',
+          transferredByPubkey: history0.last.transferredByPubkey,
+          timestamp: history0.last.timestamp,
+          transferType: history0.last.transferType,
+          txSignature: history0.last.txSignature,
+          isBiometricVerified: true,
+          isGasSponsored: true,
+        );
+      }
     }
     if (assets.length > 1) {
       assets[1].ownerIdentityPda = identityPda;
       assets[1].ownerLabel = '$userLabel (Me)';
+      final history1 = ownershipRecords[assets[1].id];
+      if (history1 != null && history1.isNotEmpty) {
+        history1.last = OwnershipRecordModel(
+          sequence: history1.last.sequence,
+          resourceId: history1.last.resourceId,
+          resourcePda: history1.last.resourcePda,
+          previousOwnerPda: history1.last.previousOwnerPda,
+          newOwnerPda: identityPda,
+          previousOwnerLabel: history1.last.previousOwnerLabel,
+          newOwnerLabel: '$userLabel (Me)',
+          transferredByPubkey: history1.last.transferredByPubkey,
+          timestamp: history1.last.timestamp,
+          transferType: history1.last.transferType,
+          txSignature: history1.last.txSignature,
+          isBiometricVerified: true,
+          isGasSponsored: true,
+        );
+      }
     }
   }
 
@@ -571,9 +621,32 @@ class SolanaService extends ChangeNotifier {
       return false;
     }
 
+    final prevOwnerPda = asset.ownerIdentityPda;
+    final prevOwnerLabel = asset.ownerLabel;
+
     // Update ownership
     asset.ownerIdentityPda = recipientAddress;
     asset.ownerLabel = recipientLabel;
+
+    // Record on-chain atomic provenance
+    final history = ownershipRecords.putIfAbsent(asset.id, () => []);
+    final nextSeq = history.length;
+    final provRecord = OwnershipRecordModel(
+      sequence: nextSeq,
+      resourceId: asset.id,
+      resourcePda: asset.pdaAddress,
+      previousOwnerPda: prevOwnerPda.isEmpty ? '11111111111111111111111111111111' : prevOwnerPda,
+      newOwnerPda: recipientAddress,
+      previousOwnerLabel: prevOwnerLabel,
+      newOwnerLabel: recipientLabel,
+      transferredByPubkey: currentUser!.publicKey,
+      timestamp: DateTime.now(),
+      transferType: 'Biometric P2P Transfer',
+      txSignature: sig,
+      isBiometricVerified: true,
+      isGasSponsored: currentUser!.isGasSponsored,
+    );
+    history.add(provRecord);
 
     activities.insert(
       0,
@@ -1312,6 +1385,599 @@ class SolanaService extends ChangeNotifier {
         type: ActivityType.deploy,
         timestamp: DateTime.now(),
         signature: '4PoaExe${Random().nextInt(999999)}Sol771',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  // --- Provenance, Teams & Custom Roles Architecture ---
+
+  List<OwnershipRecordModel> getAssetOwnershipHistory(String assetId) {
+    return ownershipRecords[assetId] ?? [];
+  }
+
+  void _initializeProvenance() {
+    ownershipRecords['res_vault_01'] = [
+      OwnershipRecordModel(
+        sequence: 0,
+        resourceId: 'res_vault_01',
+        resourcePda: '5aRts89Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL11',
+        previousOwnerPda: '11111111111111111111111111111111',
+        newOwnerPda: 'id_pda_elena_r9xQw7YpM2n',
+        previousOwnerLabel: 'Genesis Mint',
+        newOwnerLabel: 'Elena Rostova (Asset Manager)',
+        transferredByPubkey: 'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        timestamp: DateTime.now().subtract(const Duration(days: 28)),
+        transferType: 'Genesis Mint',
+        txSignature: '5NfiayYFrXHNbFSV771891928374829102839401',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+      OwnershipRecordModel(
+        sequence: 1,
+        resourceId: 'res_vault_01',
+        resourcePda: '5aRts89Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL11',
+        previousOwnerPda: 'id_pda_elena_r9xQw7YpM2n',
+        newOwnerPda: 'id_pda_me_default',
+        previousOwnerLabel: 'Elena Rostova',
+        newOwnerLabel: 'Alex Chen (Me)',
+        transferredByPubkey: 'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        timestamp: DateTime.now().subtract(const Duration(days: 3)),
+        transferType: 'Biometric P2P Transfer',
+        txSignature: '616SFk5XLAPdtPKm882910394857201948572918',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+    ];
+
+    ownershipRecords['res_data_02'] = [
+      OwnershipRecordModel(
+        sequence: 0,
+        resourceId: 'res_data_02',
+        resourcePda: '8bXym3Kp29v5yTkMn2qWv8pRxLm3sDpMvBaCxYpZqL22',
+        previousOwnerPda: '11111111111111111111111111111111',
+        newOwnerPda: 'id_pda_marcus_v5aRts89L',
+        previousOwnerLabel: 'Genesis Mint',
+        newOwnerLabel: 'Marcus Vance (Auditor)',
+        transferredByPubkey: 'Auth2mK8v7YpM2nQv8rTxLm3sDpMvBaCxYpZ4b',
+        timestamp: DateTime.now().subtract(const Duration(days: 14)),
+        transferType: 'Genesis Mint',
+        txSignature: '39ManHTqpvQCv97z994827104859281749204859',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+      OwnershipRecordModel(
+        sequence: 1,
+        resourceId: 'res_data_02',
+        resourcePda: '8bXym3Kp29v5yTkMn2qWv8pRxLm3sDpMvBaCxYpZqL22',
+        previousOwnerPda: 'id_pda_marcus_v5aRts89L',
+        newOwnerPda: 'id_pda_me_default',
+        previousOwnerLabel: 'Marcus Vance',
+        newOwnerLabel: 'Alex Chen (Me)',
+        transferredByPubkey: 'Auth2mK8v7YpM2nQv8rTxLm3sDpMvBaCxYpZ4b',
+        timestamp: DateTime.now().subtract(const Duration(days: 2)),
+        transferType: 'Admin Assignment',
+        txSignature: '4hDdu2u5Wxwq8UAW773829104859201948572019',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+    ];
+
+    ownershipRecords['res_cloud_03'] = [
+      OwnershipRecordModel(
+        sequence: 0,
+        resourceId: 'res_cloud_03',
+        resourcePda: '3cMnp77Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL33',
+        previousOwnerPda: '11111111111111111111111111111111',
+        newOwnerPda: 'id_pda_elena_r9xQw7YpM2n',
+        previousOwnerLabel: 'Genesis Mint',
+        newOwnerLabel: 'Elena Rostova',
+        transferredByPubkey: 'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        timestamp: DateTime.now().subtract(const Duration(days: 10)),
+        transferType: 'Genesis Mint',
+        txSignature: '2dfJJg3Lj9fAsda8883719284758291048572019',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+      OwnershipRecordModel(
+        sequence: 1,
+        resourceId: 'res_cloud_03',
+        resourcePda: '3cMnp77Lq0Kw7YpM2nQv8rTxLm3sDpMvBaCxYpZqL33',
+        previousOwnerPda: 'id_pda_elena_r9xQw7YpM2n',
+        newOwnerPda: 'pda_external_secops',
+        previousOwnerLabel: 'Elena Rostova',
+        newOwnerLabel: 'SecOps Team',
+        transferredByPubkey: 'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        timestamp: DateTime.now().subtract(const Duration(days: 1)),
+        transferType: 'Role-Gated Transfer',
+        txSignature: '2A2Z4ay5hMQd2nyw994829104857201948572019',
+        isBiometricVerified: true,
+        isGasSponsored: true,
+      ),
+    ];
+  }
+
+  void _initializeCustomRoles() {
+    customRoles.addAll([
+      CustomRoleModel(
+        roleId: 1,
+        name: 'Organization Admin',
+        description: 'Complete administrative control over org members, roles, and consensus.',
+        permissionsMask: 0x3F, // Full bitmask
+        color: const Color(0xFFEF4444),
+        isSystemRole: true,
+        memberCount: 2,
+      ),
+      CustomRoleModel(
+        roleId: 2,
+        name: 'Asset Manager',
+        description: 'Authorized to mint, assign, transfer, and verify digital assets.',
+        permissionsMask: 0x2F,
+        color: const Color(0xFF6366F1),
+        isSystemRole: true,
+        memberCount: 3,
+      ),
+      CustomRoleModel(
+        roleId: 3,
+        name: 'Compliance Auditor',
+        description: 'Read-only access to provenance logs, audit trails, and quorum votes.',
+        permissionsMask: 0x24,
+        color: const Color(0xFFF59E0B),
+        isSystemRole: true,
+        memberCount: 1,
+      ),
+      CustomRoleModel(
+        roleId: 4,
+        name: 'Enterprise Member',
+        description: 'Standard access to assigned resources and team collaboration.',
+        permissionsMask: 0x0F,
+        color: const Color(0xFF06B6D4),
+        isSystemRole: true,
+        memberCount: 4,
+      ),
+      CustomRoleModel(
+        roleId: 5,
+        name: 'DevOps Vault Specialist',
+        description: 'Custom role with access to Kubernetes passes and hardware vault keys.',
+        permissionsMask: 0x1B, // Custom bitmask
+        color: const Color(0xFF10B981),
+        isSystemRole: false,
+        memberCount: 2,
+      ),
+      CustomRoleModel(
+        roleId: 6,
+        name: 'AI Dataset Engineer',
+        description: 'Custom role with permissions to train and query proprietary dataset licenses.',
+        permissionsMask: 0x07, // Custom bitmask
+        color: const Color(0xFF8B5CF6),
+        isSystemRole: false,
+        memberCount: 1,
+      ),
+    ]);
+  }
+
+  void _initializeTeams() {
+    teams.addAll([
+      TeamModel(
+        id: 'team_infra',
+        name: 'Core Infrastructure Ops',
+        description: 'Responsible for multi-cloud deployments, production Kubernetes, and vault secrets.',
+        assignedRoleIds: [2, 5], // Asset Manager + DevOps Vault Specialist
+        permissionsMask: 0x3F,
+        color: const Color(0xFF3B82F6),
+        createdAt: DateTime.now().subtract(const Duration(days: 20)),
+        memberNames: ['Elena Rostova', 'Sarah Chen'],
+        memberIdentities: ['id_pda_elena_r9xQw7YpM2n', 'id_pda_sarah_c8bXym3Kp'],
+      ),
+      TeamModel(
+        id: 'team_governance',
+        name: 'Compliance & Governance',
+        description: 'Oversees regulatory compliance, DPDP/GDPR zero-PII commitments, and PoA audits.',
+        assignedRoleIds: [3], // Compliance Auditor
+        permissionsMask: 0x24,
+        color: const Color(0xFFF59E0B),
+        createdAt: DateTime.now().subtract(const Duration(days: 15)),
+        memberNames: ['Marcus Vance'],
+        memberIdentities: ['id_pda_marcus_v5aRts89L'],
+      ),
+      TeamModel(
+        id: 'team_ai_research',
+        name: 'AI Research Workgroup',
+        description: 'Engineers building next-gen foundational models with proprietary datasets.',
+        assignedRoleIds: [4, 6], // Enterprise Member + AI Dataset Engineer
+        permissionsMask: 0x0F,
+        color: const Color(0xFF8B5CF6),
+        createdAt: DateTime.now().subtract(const Duration(days: 8)),
+        memberNames: ['Sarah Chen'],
+        memberIdentities: ['id_pda_sarah_c8bXym3Kp'],
+      ),
+    ]);
+  }
+
+  void _initializeIdentityRecovery() {
+    identityRecovery = IdentityRecoveryModel(
+      identityPda: 'id_pda_me_default',
+      guardians: [
+        'Elena Rostova (Guardian 1)',
+        'Marcus Vance (Guardian 2)',
+      ],
+      threshold: 2,
+      isConfigured: true,
+      activeRecoveryNewController: null,
+      approvalCount: 0,
+      isInProgress: false,
+      approvedGuardians: [],
+    );
+  }
+
+  /// Create a new Custom Role
+  Future<bool> createCustomRole({
+    required String name,
+    required String description,
+    required int permissionsMask,
+    Color? color,
+  }) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    final newRoleId = customRoles.length + 1;
+    final newRole = CustomRoleModel(
+      roleId: newRoleId,
+      name: name,
+      description: description,
+      permissionsMask: permissionsMask,
+      color: color ?? const Color(0xFF6366F1),
+      isSystemRole: false,
+      memberCount: 0,
+    );
+
+    customRoles.add(newRole);
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Custom Role Created: $name',
+        subtitle: 'Permissions Mask: 0x${permissionsMask.toRadixString(16).toUpperCase().padLeft(2, '0')}',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '2RoleNew${Random().nextInt(999999)}Sol491',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Create a new Team under the Organization
+  Future<bool> createTeam({
+    required String name,
+    required String description,
+    required List<int> assignedRoleIds,
+    Color? color,
+  }) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    // Combine permissions masks of assigned roles
+    int combinedMask = 0;
+    for (final rId in assignedRoleIds) {
+      final roleMatch = customRoles.firstWhere((r) => r.roleId == rId, orElse: () => customRoles.first);
+      combinedMask |= roleMatch.permissionsMask;
+    }
+
+    final newTeam = TeamModel(
+      id: 'team_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      description: description,
+      assignedRoleIds: assignedRoleIds,
+      permissionsMask: combinedMask,
+      color: color ?? const Color(0xFF3B82F6),
+      createdAt: DateTime.now(),
+      memberNames: [],
+      memberIdentities: [],
+    );
+
+    teams.add(newTeam);
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Team Created: $name',
+        subtitle: '${assignedRoleIds.length} Roles Assigned (Permissions: 0x${combinedMask.toRadixString(16).toUpperCase()})',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '3TeamNew${Random().nextInt(999999)}Sol582',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Update / Assign Roles to a Team as a whole
+  Future<bool> assignTeamRoles(String teamId, List<int> roleIds) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    final team = teams.firstWhere((t) => t.id == teamId);
+    team.assignedRoleIds.clear();
+    team.assignedRoleIds.addAll(roleIds);
+
+    int combinedMask = 0;
+    for (final rId in roleIds) {
+      final roleMatch = customRoles.firstWhere((r) => r.roleId == rId, orElse: () => customRoles.first);
+      combinedMask |= roleMatch.permissionsMask;
+    }
+    team.permissionsMask = combinedMask;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Team Roles Updated: ${team.name}',
+        subtitle: '${roleIds.length} Roles Assigned to Whole Team',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '4TeamRol${Random().nextInt(999999)}Sol991',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Add Member to Team
+  Future<bool> addMemberToTeam(String teamId, String memberName, String identityPda) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final team = teams.firstWhere((t) => t.id == teamId);
+    if (!team.memberNames.contains(memberName)) {
+      team.memberNames.add(memberName);
+      team.memberIdentities.add(identityPda);
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Member Added to ${team.name}',
+        subtitle: '$memberName joined team and inherited whole-team permissions',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '6MemAdd${Random().nextInt(999999)}Sol129',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Remove Member from Team
+  Future<bool> removeMemberFromTeam(String teamId, String memberName) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final team = teams.firstWhere((t) => t.id == teamId);
+    final idx = team.memberNames.indexOf(memberName);
+    if (idx != -1) {
+      team.memberNames.removeAt(idx);
+      if (idx < team.memberIdentities.length) {
+        team.memberIdentities.removeAt(idx);
+      }
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Member Removed from ${team.name}',
+        subtitle: '$memberName membership PDA closed on-chain',
+        type: ActivityType.securityReject,
+        timestamp: DateTime.now(),
+        signature: '7MemRem${Random().nextInt(999999)}Sol331',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Configure Identity Recovery Protocol (Guardians & Threshold)
+  Future<bool> configureIdentityRecovery({
+    required List<String> guardians,
+    required int threshold,
+  }) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    identityRecovery = IdentityRecoveryModel(
+      identityPda: currentUser!.identityPda,
+      guardians: guardians,
+      threshold: threshold,
+      isConfigured: true,
+      activeRecoveryNewController: null,
+      approvalCount: 0,
+      isInProgress: false,
+      approvedGuardians: [],
+    );
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Identity Recovery Configured',
+        subtitle: '$threshold-of-${guardians.length} Guardian Protection Activated',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '8RecCfg${Random().nextInt(999999)}Sol442',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Initiate Identity Recovery proposing a new device key
+  Future<bool> initiateIdentityRecovery({required String newDeviceKey}) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    identityRecovery = IdentityRecoveryModel(
+      identityPda: identityRecovery.identityPda,
+      guardians: identityRecovery.guardians,
+      threshold: identityRecovery.threshold,
+      isConfigured: true,
+      activeRecoveryNewController: newDeviceKey,
+      approvalCount: 1,
+      isInProgress: true,
+      approvedGuardians: [identityRecovery.guardians.first],
+    );
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Identity Recovery Initiated',
+        subtitle: 'Proposing new device controller key (1/${identityRecovery.threshold} Approvals)',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '9RecInit${Random().nextInt(999999)}Sol881',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Guardian approves identity recovery
+  Future<bool> approveIdentityRecovery(String guardianName) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (!identityRecovery.approvedGuardians.contains(guardianName)) {
+      final updatedGuardians = List<String>.from(identityRecovery.approvedGuardians)..add(guardianName);
+      identityRecovery = IdentityRecoveryModel(
+        identityPda: identityRecovery.identityPda,
+        guardians: identityRecovery.guardians,
+        threshold: identityRecovery.threshold,
+        isConfigured: true,
+        activeRecoveryNewController: identityRecovery.activeRecoveryNewController,
+        approvalCount: updatedGuardians.length,
+        isInProgress: true,
+        approvedGuardians: updatedGuardians,
+      );
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Guardian Approved Recovery',
+        subtitle: '$guardianName confirmed controller key rotation (${identityRecovery.approvalCount}/${identityRecovery.threshold})',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '2RecAppr${Random().nextInt(999999)}Sol992',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Execute Identity Recovery Key Rotation
+  Future<bool> executeIdentityRecovery() async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (identityRecovery.approvalCount < identityRecovery.threshold) {
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    final newKey = identityRecovery.activeRecoveryNewController ?? 'NewRotatedDeviceKey771';
+    
+    // Rotate currentUser public key while preserving Identity PDA and assets
+    if (currentUser != null) {
+      currentUser = UserProfile(
+        name: currentUser!.name,
+        email: currentUser!.email,
+        authProvider: currentUser!.authProvider,
+        companyDomain: currentUser!.companyDomain,
+        publicKey: newKey,
+        identityPda: currentUser!.identityPda, // PRESERVED!
+        role: currentUser!.role,
+        permissionsMask: currentUser!.permissionsMask,
+        solBalance: currentUser!.solBalance,
+        avatarColor: currentUser!.avatarColor,
+        isGasSponsored: currentUser!.isGasSponsored,
+      );
+    }
+
+    identityRecovery = IdentityRecoveryModel(
+      identityPda: identityRecovery.identityPda,
+      guardians: identityRecovery.guardians,
+      threshold: identityRecovery.threshold,
+      isConfigured: true,
+      activeRecoveryNewController: null,
+      approvalCount: 0,
+      isInProgress: false,
+      approvedGuardians: [],
+    );
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'Controller Key Rotated Successfully',
+        subtitle: 'Device key updated without changing Identity PDA or losing assets',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '1RecExe${Random().nextInt(999999)}Sol119',
         isGasSponsored: true,
       ),
     );

@@ -295,6 +295,10 @@ class IdentityPassView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Identity Key Recovery Protocol Card (Solves Key-Loss Risk)
+          _buildIdentityRecoveryCard(context),
+          const SizedBox(height: 20),
+
           // RBAC Permissions Breakdown
           const Text(
             'Enforced On-Chain Permissions',
@@ -373,6 +377,208 @@ class IdentityPassView extends StatelessWidget {
               },
             ),
           ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Identity Guardian & Key Recovery Protocol UI
+  // ---------------------------------------------------------------------------
+
+  Widget _buildIdentityRecoveryCard(BuildContext context) {
+    final recovery = service.identityRecovery;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cyan.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cyan.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.cyan.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.key_rounded, size: 16, color: AppColors.cyan),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Identity Guardian & Key Recovery',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${recovery.threshold}-of-${recovery.guardians.length} GUARDIANS',
+                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.emerald),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Protects against permanent lockout if your device or Ed25519 key is lost. Guardians can rotate the controller key without altering your Identity PDA or losing assets.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3),
+          ),
+          const SizedBox(height: 12),
+
+          // Guardian List
+          ...recovery.guardians.map((g) {
+            final isApproved = recovery.approvedGuardians.contains(g);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isApproved ? Icons.verified_rounded : Icons.person_outline_rounded,
+                        size: 14,
+                        color: isApproved ? AppColors.emerald : AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(g, style: const TextStyle(fontSize: 11, color: AppColors.textMain, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: (isApproved ? AppColors.emerald : AppColors.textDim).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isApproved ? 'APPROVED' : 'STANDBY',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        color: isApproved ? AppColors.emerald : AppColors.textDim,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 12),
+
+          // Recovery Action Buttons
+          if (recovery.isInProgress) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.amber),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Key Rotation Proposal Active (${recovery.approvalCount}/${recovery.threshold} Approvals)',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.amber),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Proposed Controller: ${recovery.activeRecoveryNewController}',
+                    style: AppTheme.mono(fontSize: 10, color: AppColors.textDim),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (recovery.approvalCount < recovery.threshold)
+              ElevatedButton.icon(
+                onPressed: () {
+                  final unapproved = recovery.guardians.firstWhere(
+                    (g) => !recovery.approvedGuardians.contains(g),
+                    orElse: () => recovery.guardians.first,
+                  );
+                  service.approveIdentityRecovery(unapproved);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Guardian "$unapproved" endorsed key rotation!'), backgroundColor: AppColors.emerald),
+                  );
+                },
+                icon: const Icon(Icons.thumb_up_alt_rounded, size: 14),
+                label: const Text('Guardian 2 Endorsement (2nd Signature)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () {
+                  service.executeIdentityRecovery();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Device key rotated! Identity PDA and assets preserved.'), backgroundColor: AppColors.emerald),
+                  );
+                },
+                icon: const Icon(Icons.autorenew_rounded, size: 14),
+                label: const Text('Execute Controller Key Rotation (Solana Devnet)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.emerald,
+                  foregroundColor: Colors.black87,
+                  minimumSize: const Size.fromHeight(38),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+          ] else
+            OutlinedButton.icon(
+              onPressed: () {
+                service.initiateIdentityRecovery(newDeviceKey: 'RotatedDeviceKey${DateTime.now().millisecondsSinceEpoch % 10000}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Initiated key recovery flow! Proposing new controller key.'), backgroundColor: AppColors.cyan),
+                );
+              },
+              icon: const Icon(Icons.build_circle_outlined, size: 14, color: AppColors.cyan),
+              label: const Text('Test Lost Key Recovery & Rotation Flow', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.cyan)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: AppColors.cyan.withValues(alpha: 0.4)),
+                minimumSize: const Size.fromHeight(38),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
         ],
       ),
     );

@@ -138,5 +138,100 @@ pub mod identity_registry {
     ) -> Result<()> {
         handler_execute_rotate_quorum_proposal(ctx, new_threshold, new_authorities)
     }
+
+    // ------------------------------------------------------------------------
+    // Asset Ownership Provenance Endpoints
+    // ------------------------------------------------------------------------
+
+    /// Record an ownership event (e.g. Genesis mint or off-chain verified transfer) on-chain.
+    pub fn record_ownership_transfer(
+        ctx: Context<RecordOwnershipTransfer>,
+        sequence: u32,
+        transfer_type: u8,
+    ) -> Result<()> {
+        handler_record_ownership_transfer(ctx, sequence, transfer_type)
+    }
+
+    /// Transfer a resource and atomically record an immutable on-chain OwnershipRecord PDA.
+    pub fn transfer_resource_with_provenance(
+        ctx: Context<TransferResourceWithProvenance>,
+        sequence: u32,
+    ) -> Result<()> {
+        handler_transfer_resource_with_provenance(ctx, sequence)
+    }
+
+    // ------------------------------------------------------------------------
+    // Custom Roles & Teams Governance Endpoints
+    // ------------------------------------------------------------------------
+
+    /// Create a custom organizational role with arbitrary permission bitmasks.
+    pub fn create_custom_role(
+        ctx: Context<CreateCustomRole>,
+        role_id: u16,
+        name: String,
+        permissions: u64,
+    ) -> Result<()> {
+        handler_create_custom_role(ctx, role_id, name, permissions)
+    }
+
+    /// Create an organizational team with assigned role bitmasks.
+    pub fn create_team(
+        ctx: Context<CreateTeam>,
+        team_id: u32,
+        name: String,
+        assigned_roles_mask: u64,
+    ) -> Result<()> {
+        handler_create_team(ctx, team_id, name, assigned_roles_mask)
+    }
+
+    /// Update the roles and permissions assigned to a team as a whole.
+    pub fn assign_team_roles(
+        ctx: Context<AssignTeamRoles>,
+        assigned_roles_mask: u64,
+    ) -> Result<()> {
+        handler_assign_team_roles(ctx, assigned_roles_mask)
+    }
+
+    /// Add an identity member to an organizational team.
+    pub fn add_team_member(ctx: Context<AddTeamMember>) -> Result<()> {
+        handler_add_team_member(ctx)
+    }
+
+    /// Remove an identity member from an organizational team.
+    pub fn remove_team_member(ctx: Context<RemoveTeamMember>) -> Result<()> {
+        handler_remove_team_member(ctx)
+    }
+
+    // ------------------------------------------------------------------------
+    // Identity Key Recovery Endpoints (Mitigating Key Loss Risk)
+    // ------------------------------------------------------------------------
+
+    /// Configure recovery guardians and threshold for an identity.
+    pub fn configure_identity_recovery(
+        ctx: Context<ConfigureIdentityRecovery>,
+        guardians: Vec<Pubkey>,
+        threshold: u8,
+    ) -> Result<()> {
+        handler_configure_identity_recovery(ctx, guardians, threshold)
+    }
+
+    /// Initiate an identity key recovery process to rotate a lost controller key.
+    pub fn initiate_identity_recovery(
+        ctx: Context<InitiateIdentityRecovery>,
+        proposed_new_controller: Pubkey,
+    ) -> Result<()> {
+        handler_initiate_identity_recovery(ctx, proposed_new_controller)
+    }
+
+    /// Approve an ongoing identity key recovery process by an authorized guardian.
+    pub fn approve_identity_recovery(ctx: Context<ApproveIdentityRecovery>) -> Result<()> {
+        handler_approve_identity_recovery(ctx)
+    }
+
+    /// Finalize key recovery and rotate the identity controller key once threshold is met.
+    pub fn execute_identity_recovery(ctx: Context<ExecuteIdentityRecovery>) -> Result<()> {
+        handler_execute_identity_recovery(ctx)
+    }
 }
+
 

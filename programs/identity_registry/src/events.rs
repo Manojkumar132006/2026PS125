@@ -121,3 +121,84 @@ pub struct ProposalRejected {
     pub authority: Pubkey,
 }
 
+// ----------------------------------------------------------------------------
+// Provenance, Custom Roles, Teams, and Recovery Events
+// ----------------------------------------------------------------------------
+
+#[event]
+pub struct OwnershipRecorded {
+    pub resource: Pubkey,
+    pub sequence: u32,
+    pub previous_owner: Pubkey,
+    pub new_owner: Pubkey,
+    pub transferred_by: Pubkey,
+    pub transfer_type: u8,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct CustomRoleCreated {
+    pub organization: Pubkey,
+    pub custom_role: Pubkey,
+    pub role_id: u16,
+    pub name: [u8; 32],
+    pub permissions: u64,
+}
+
+#[event]
+pub struct TeamCreated {
+    pub organization: Pubkey,
+    pub team: Pubkey,
+    pub team_id: u32,
+    pub name: [u8; 32],
+    pub assigned_roles_mask: u64,
+}
+
+#[event]
+pub struct TeamRolesAssigned {
+    pub organization: Pubkey,
+    pub team: Pubkey,
+    pub team_id: u32,
+    pub assigned_roles_mask: u64,
+}
+
+#[event]
+pub struct TeamMemberAdded {
+    pub team: Pubkey,
+    pub identity: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct TeamMemberRemoved {
+    pub team: Pubkey,
+    pub identity: Pubkey,
+}
+
+#[event]
+pub struct IdentityRecoveryConfigured {
+    pub identity: Pubkey,
+    pub threshold: u8,
+    pub guardians_count: u8,
+}
+
+#[event]
+pub struct IdentityRecoveryInitiated {
+    pub identity: Pubkey,
+    pub proposed_new_controller: Pubkey,
+}
+
+#[event]
+pub struct IdentityRecoveryApproved {
+    pub identity: Pubkey,
+    pub guardian: Pubkey,
+    pub approvals_count: u8,
+}
+
+#[event]
+pub struct IdentityControllerRotated {
+    pub identity: Pubkey,
+    pub old_controller: Pubkey,
+    pub new_controller: Pubkey,
+}
+

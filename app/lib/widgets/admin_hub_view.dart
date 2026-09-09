@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import 'assign_role_modal.dart';
 import 'create_asset_modal.dart';
 import 'invite_member_modal.dart';
+import 'ownership_provenance_modal.dart';
 
 class AdminHubView extends StatelessWidget {
   final SolanaService service;
@@ -574,6 +575,18 @@ class AdminHubView extends StatelessWidget {
         _buildPoAConsensusCard(context),
         const SizedBox(height: 20),
 
+        // Teams & Workgroups Architecture
+        _buildTeamsSection(context),
+        const SizedBox(height: 20),
+
+        // Custom Roles Engine
+        _buildCustomRolesSection(context),
+        const SizedBox(height: 20),
+
+        // DPDP & GDPR Zero-PII Compliance Engine
+        _buildGdprComplianceCard(context),
+        const SizedBox(height: 20),
+
         // Member Roster Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -783,6 +796,11 @@ class AdminHubView extends StatelessWidget {
                       Text(asset.shortPda, style: AppTheme.mono(fontSize: 10, color: AppColors.textMuted)),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.history_edu_rounded, size: 18, color: AppColors.cyan),
+                  tooltip: 'View Provenance History',
+                  onPressed: () => showOwnershipProvenanceModal(context, asset: asset, service: service),
                 ),
                 if (!asset.isRevoked)
                   IconButton(
@@ -1213,6 +1231,834 @@ class AdminHubView extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Teams & Workgroups Architecture UI
+  // ---------------------------------------------------------------------------
+
+  Widget _buildTeamsSection(BuildContext context) {
+    final teams = service.teams;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.groups_rounded, size: 16, color: AppColors.primaryLight),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Teams & Workgroups (${teams.length})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => _showCreateTeamDialog(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.add_rounded, size: 14, color: AppColors.primaryLight),
+                      SizedBox(width: 4),
+                      Text('Create Team', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primaryLight)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (teams.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Center(
+                child: Text('No teams registered under this organization.', style: TextStyle(fontSize: 12, color: AppColors.textDim)),
+              ),
+            )
+          else
+            ...teams.map((team) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSecondary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: team.color.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(color: team.color, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              team.name,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.purple.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Mask: 0x${team.permissionsMask.toRadixString(16).toUpperCase().padLeft(2, '0')}',
+                            style: AppTheme.mono(fontSize: 10, color: AppColors.purple, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      team.description,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Inherited Roles row
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: team.assignedRoleIds.map((rId) {
+                        final role = service.customRoles.firstWhere(
+                          (r) => r.roleId == rId,
+                          orElse: () => CustomRoleModel(roleId: rId, name: 'Role #$rId', description: '', permissionsMask: 0),
+                        );
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: role.color.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: role.color.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.shield_rounded, size: 10, color: role.color),
+                              const SizedBox(width: 4),
+                              Text(
+                                role.name,
+                                style: TextStyle(fontSize: 10, color: role.color, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(height: 12, color: AppColors.border),
+
+                    // Members & Actions row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.people_alt_outlined, size: 13, color: AppColors.textDim),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${team.memberCount} Member${team.memberCount == 1 ? '' : 's'}: ${team.memberNames.isEmpty ? "None yet" : team.memberNames.join(", ")}',
+                              style: const TextStyle(fontSize: 10, color: AppColors.textDim),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            InkWell(
+                              onTap: () => _showAddTeamMemberDialog(context, team),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.person_add_alt, size: 12, color: AppColors.cyan),
+                                    SizedBox(width: 3),
+                                    Text('Add Member', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.cyan)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () => _showAssignTeamRolesDialog(context, team),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.tune_rounded, size: 12, color: AppColors.primaryLight),
+                                    SizedBox(width: 3),
+                                    Text('Roles', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primaryLight)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Custom Roles Engine UI
+  // ---------------------------------------------------------------------------
+
+  Widget _buildCustomRolesSection(BuildContext context) {
+    final roles = service.customRoles;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.purple.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.purple.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.purple.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.badge_rounded, size: 16, color: AppColors.purple),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Custom Roles Engine (${roles.length})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => _showCreateCustomRoleDialog(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.purple.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.purple.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.add_rounded, size: 14, color: AppColors.purple),
+                      SizedBox(width: 4),
+                      Text('Create Role', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.purple)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          ...roles.map((role) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: role.color.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(color: role.color, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            role.name,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: (role.isSystemRole ? AppColors.textDim : role.color).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              role.isSystemRole ? 'SYSTEM' : 'CUSTOM',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: role.isSystemRole ? AppColors.textMuted : role.color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '0x${role.permissionsMask.toRadixString(16).toUpperCase().padLeft(2, '0')}',
+                        style: AppTheme.mono(fontSize: 10, color: role.color, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    role.description,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Permission flags row
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      if (role.hasPermission(0x01)) _buildPermBadge('CREATE_ID', AppColors.cyan),
+                      if (role.hasPermission(0x02)) _buildPermBadge('ASSIGN_ROLE', AppColors.primary),
+                      if (role.hasPermission(0x04)) _buildPermBadge('REVOKE_ROLE', AppColors.amber),
+                      if (role.hasPermission(0x08)) _buildPermBadge('CREATE_ASSET', AppColors.emerald),
+                      if (role.hasPermission(0x10)) _buildPermBadge('ASSIGN_ASSET', AppColors.cyan),
+                      if (role.hasPermission(0x20)) _buildPermBadge('ADMIN', AppColors.rose),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // DPDP 2023 & GDPR Zero-PII Compliance Engine
+  // ---------------------------------------------------------------------------
+
+  Widget _buildGdprComplianceCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.emerald.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.emerald.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.emerald.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.privacy_tip_rounded, size: 16, color: AppColors.emerald),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'DPDP 2023 & GDPR Compliance',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMain),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.emerald.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('ZERO-PII CERTIFIED', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.emerald)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Cryptographic Zero-Knowledge Architecture:',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMain),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '• On-Chain Commitment: All user emails and employee profiles are hashed via HMAC-SHA256(email, orgSalt). No cleartext personal data is committed to the blockchain.\n'
+            '• Crypto-Shredding Guarantee: Revoking or rotating the off-chain salt achieves mathematical "Right to be Forgotten" without breaking ledger immutability.\n'
+            '• Deterministic Recovery: Lost biometric enclave keys can be safely recovered via 2-of-2 guardian quorums without changing on-chain PDA identities.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dialogs for Teams and Custom Roles
+  // ---------------------------------------------------------------------------
+
+  void _showCreateTeamDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final selectedRoleIds = <int>[service.customRoles.first.roleId];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Create New Team', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textMain)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Team Name',
+                    labelStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    hintText: 'e.g. SRE Platform Engineers',
+                    hintStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.bgSecondary,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Description',
+                    labelStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    hintText: 'Responsibilities & mission',
+                    hintStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.bgSecondary,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Assign Custom Roles to Whole Team:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: service.customRoles.map((role) {
+                    final isSelected = selectedRoleIds.contains(role.roleId);
+                    return FilterChip(
+                      selected: isSelected,
+                      label: Text(role.name, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : AppColors.textMuted)),
+                      backgroundColor: AppColors.bgSecondary,
+                      selectedColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      onSelected: (val) {
+                        setStateDialog(() {
+                          if (val) {
+                            selectedRoleIds.add(role.roleId);
+                          } else {
+                            if (selectedRoleIds.length > 1) {
+                              selectedRoleIds.remove(role.roleId);
+                            }
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                Navigator.pop(ctx);
+                service.createTeam(
+                  name: name,
+                  description: descCtrl.text.trim().isEmpty ? 'Workgroup team' : descCtrl.text.trim(),
+                  assignedRoleIds: selectedRoleIds,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Team "$name" created on-chain!'), backgroundColor: AppColors.emerald),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Create Team', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAssignTeamRolesDialog(BuildContext context, TeamModel team) {
+    final selectedRoleIds = List<int>.from(team.assignedRoleIds);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Roles: ${team.name}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Select which roles this team inherits. All team members receive the combined permission mask.',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.3),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: service.customRoles.map((role) {
+                  final isSelected = selectedRoleIds.contains(role.roleId);
+                  return FilterChip(
+                    selected: isSelected,
+                    label: Text(role.name, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : AppColors.textMuted)),
+                    backgroundColor: AppColors.bgSecondary,
+                    selectedColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (val) {
+                      setStateDialog(() {
+                        if (val) {
+                          selectedRoleIds.add(role.roleId);
+                        } else {
+                          if (selectedRoleIds.length > 1) {
+                            selectedRoleIds.remove(role.roleId);
+                          }
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                service.assignTeamRoles(team.id, selectedRoleIds);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Updated roles for ${team.name}!'), backgroundColor: AppColors.emerald),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Save Roles', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddTeamMemberDialog(BuildContext context, TeamModel team) {
+    final availableMembers = service.currentOrgMembers.where((m) => !team.memberNames.contains(m.name)).toList();
+
+    if (availableMembers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All organization members are already in this team!')),
+      );
+      return;
+    }
+
+    OrgMember selectedMember = availableMembers.first;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Add Member to ${team.name}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Select organization member to add:', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSecondary,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<OrgMember>(
+                    value: selectedMember,
+                    isExpanded: true,
+                    dropdownColor: AppColors.bgSecondary,
+                    items: availableMembers.map((m) {
+                      return DropdownMenuItem(
+                        value: m,
+                        child: Text(m.name, style: const TextStyle(fontSize: 13, color: AppColors.textMain)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setStateDialog(() => selectedMember = val);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                service.addMemberToTeam(team.id, selectedMember.name, selectedMember.identityPda);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${selectedMember.name} joined ${team.name}!'), backgroundColor: AppColors.emerald),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.cyan,
+                foregroundColor: Colors.black87,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Add to Team', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCreateCustomRoleDialog(BuildContext context) {
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    int permissionsMask = 0x08 | 0x10; // Default: CREATE_RESOURCE | ASSIGN_RESOURCE
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: AppColors.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Create Custom Role', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textMain)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Role Name',
+                    labelStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    hintText: 'e.g. Kubernetes Ops Lead',
+                    hintStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.bgSecondary,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: descCtrl,
+                  style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Role Description',
+                    labelStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    hintText: 'Scope of duties',
+                    hintStyle: const TextStyle(color: AppColors.textDim, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.bgSecondary,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Granular RBAC Bitmask:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textMuted)),
+                    Text('0x${permissionsMask.toRadixString(16).toUpperCase().padLeft(2, '0')}', style: AppTheme.mono(fontSize: 11, color: AppColors.purple, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                _buildPermToggle('CREATE_IDENTITY (0x01)', 0x01, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x01) : (permissionsMask & ~0x01))),
+                _buildPermToggle('ASSIGN_ROLE (0x02)', 0x02, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x02) : (permissionsMask & ~0x02))),
+                _buildPermToggle('REVOKE_ROLE (0x04)', 0x04, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x04) : (permissionsMask & ~0x04))),
+                _buildPermToggle('CREATE_RESOURCE (0x08)', 0x08, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x08) : (permissionsMask & ~0x08))),
+                _buildPermToggle('ASSIGN_RESOURCE (0x10)', 0x10, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x10) : (permissionsMask & ~0x10))),
+                _buildPermToggle('TRANSFER_RESOURCE (0x20)', 0x20, permissionsMask, (v) => setStateDialog(() => permissionsMask = v ? (permissionsMask | 0x20) : (permissionsMask & ~0x20))),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                Navigator.pop(ctx);
+                service.createCustomRole(
+                  name: name,
+                  description: descCtrl.text.trim().isEmpty ? 'Custom RBAC role' : descCtrl.text.trim(),
+                  permissionsMask: permissionsMask,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Custom Role "$name" created on-chain!'), backgroundColor: AppColors.emerald),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.purple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Create Role', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPermToggle(String label, int flag, int currentMask, ValueChanged<bool> onChanged) {
+    final isChecked = (currentMask & flag) != 0;
+    return InkWell(
+      onTap: () => onChanged(!isChecked),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              isChecked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+              size: 18,
+              color: isChecked ? AppColors.purple : AppColors.textDim,
+            ),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(fontSize: 11, color: isChecked ? AppColors.textMain : AppColors.textDim)),
+          ],
+        ),
       ),
     );
   }

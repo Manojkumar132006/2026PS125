@@ -55,4 +55,37 @@ pub enum RegistryError {
 
     #[msg("Target account mismatch for proposal")]
     ProposalTargetMismatch,
+
+    #[msg("Team or role name exceeds maximum length of 32 bytes")]
+    NameTooLong,
+
+    #[msg("Identity is already a member of this team")]
+    MemberAlreadyInTeam,
+
+    #[msg("Identity is not a member of this team")]
+    MemberNotInTeam,
+
+    #[msg("Key recovery is not configured for this identity")]
+    RecoveryNotConfigured,
+
+    #[msg("Invalid recovery threshold: must be > 0 and <= guardians count")]
+    InvalidRecoveryThreshold,
+
+    #[msg("A key recovery operation is already in progress")]
+    RecoveryAlreadyInProgress,
+
+    #[msg("No key recovery operation is currently active")]
+    RecoveryNotInProgress,
+
+    #[msg("Signer is not an authorized recovery guardian")]
+    UnauthorizedGuardian,
+
+    #[msg("Guardian has already approved this recovery")]
+    GuardianAlreadyVoted,
+
+    #[msg("Recovery approval threshold has not been reached")]
+    RecoveryThresholdNotMet,
+
+    #[msg("Ownership sequence must match current transfer count")]
+    InvalidOwnershipSequence,
 }

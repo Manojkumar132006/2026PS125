@@ -113,3 +113,86 @@ pub struct ConsensusProposal {
     pub bump: u8,
 }
 
+// ----------------------------------------------------------------------------
+// Asset Ownership Provenance State
+// ----------------------------------------------------------------------------
+
+pub const TRANSFER_TYPE_MINT: u8     = 0;
+pub const TRANSFER_TYPE_TRANSFER: u8 = 1;
+pub const TRANSFER_TYPE_REVOKE: u8   = 2;
+pub const TRANSFER_TYPE_RECOVERY: u8 = 3;
+
+#[account]
+#[derive(InitSpace)]
+pub struct OwnershipRecord {
+    pub resource: Pubkey,
+    pub sequence: u32,
+    pub previous_owner: Pubkey,
+    pub new_owner: Pubkey,
+    pub transferred_by: Pubkey,
+    pub timestamp: i64,
+    pub transfer_type: u8,
+    pub version: u8,
+    pub reserved: [u8; 16],
+    pub bump: u8,
+}
+
+// ----------------------------------------------------------------------------
+// Custom Roles & Teams Architecture
+// ----------------------------------------------------------------------------
+
+#[account]
+#[derive(InitSpace)]
+pub struct CustomRole {
+    pub organization: Pubkey,
+    pub role_id: u16,
+    pub name: [u8; 32],
+    pub permissions: u64,
+    pub version: u8,
+    pub reserved: [u8; 32],
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct Team {
+    pub organization: Pubkey,
+    pub team_id: u32,
+    pub name: [u8; 32],
+    pub assigned_roles_mask: u64,
+    pub member_count: u32,
+    pub version: u8,
+    pub reserved: [u8; 32],
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct TeamMember {
+    pub team: Pubkey,
+    pub identity: Pubkey,
+    pub joined_at: i64,
+    pub bump: u8,
+}
+
+// ----------------------------------------------------------------------------
+// Identity Key Recovery Protocol (Mitigating Key Loss Risk)
+// ----------------------------------------------------------------------------
+
+pub const MAX_GUARDIANS: usize = 3;
+
+#[account]
+#[derive(InitSpace)]
+pub struct IdentityRecovery {
+    pub identity: Pubkey,
+    pub guardians: [Pubkey; MAX_GUARDIANS],
+    pub guardians_count: u8,
+    pub threshold: u8,
+    pub recovery_in_progress: bool,
+    pub proposed_new_controller: Pubkey,
+    pub approvals_mask: u8,
+    pub version: u8,
+    pub reserved: [u8; 16],
+    pub bump: u8,
+}
+

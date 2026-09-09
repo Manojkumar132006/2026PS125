@@ -92,6 +92,47 @@ export class IdentityRegistryClient {
     );
   }
 
+  getOwnershipRecordPda(resource: PublicKey, sequence: number): [PublicKey, number] {
+    const seqBuf = Buffer.alloc(4);
+    seqBuf.writeUInt32LE(sequence);
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("provenance"), resource.toBuffer(), seqBuf],
+      this.program.programId
+    );
+  }
+
+  getCustomRolePda(organization: PublicKey, roleId: number): [PublicKey, number] {
+    const roleBuf = Buffer.alloc(2);
+    roleBuf.writeUInt16LE(roleId);
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("custom_role"), organization.toBuffer(), roleBuf],
+      this.program.programId
+    );
+  }
+
+  getTeamPda(organization: PublicKey, teamId: number): [PublicKey, number] {
+    const teamBuf = Buffer.alloc(4);
+    teamBuf.writeUInt32LE(teamId);
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("team"), organization.toBuffer(), teamBuf],
+      this.program.programId
+    );
+  }
+
+  getTeamMemberPda(team: PublicKey, identity: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("team_member"), team.toBuffer(), identity.toBuffer()],
+      this.program.programId
+    );
+  }
+
+  getIdentityRecoveryPda(identity: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("recovery"), identity.toBuffer()],
+      this.program.programId
+    );
+  }
+
   // Sponsored Transaction Helper
   // Sends a transaction where user signs as controller (proving authorization)
   // and sponsor signs as feePayer (covering SOL transaction fees & rent)

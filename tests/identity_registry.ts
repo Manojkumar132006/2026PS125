@@ -1307,6 +1307,314 @@ describe("Identity Registry MVP", () => {
     });
   });
 
+  // --------------------------------------------------------------------------
+  // Asset Ownership Provenance Tests
+  // --------------------------------------------------------------------------
+  describe("Asset Ownership Provenance Engine", () => {
+    const provResourceId = new BN(555);
+    let provResourcePda: PublicKey;
+    const initialOwner = userA;
+    const nextOwner = userB;
+
+    it("Initializes a resource and records genesis mint ownership (seq 0)", async () => {
+      [provResourcePda] = client.getResourcePda(orgPda, provResourceId);
+      const [record0Pda] = client.getOwnershipRecordPda(provResourcePda, 0);
+
+      // Create resource
+      await program.methods
+        .createResource(provResourceId, 1) // type 1
+        .accountsPartial({
+          resource: provResourcePda,
+          organization: orgPda,
+          creatorIdentity: identityAPda,
+          controller: userA.publicKey,
+          grant: grantAOrgPda, // using org grant with CREATE_RESOURCE
+          role: assetManagerRolePda,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userA])
+        .rpc();
+
+      // Record genesis ownership
+      await program.methods
+        .recordOwnershipTransfer(0, 0) // seq 0, type 0 = Mint
+        .accountsPartial({
+          ownershipRecord: record0Pda,
+          resource: provResourcePda,
+          organization: orgPda,
+          previousOwner: PublicKey.default,
+          newOwner: identityAPda,
+          transferredBy: userA.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userA])
+        .rpc();
+
+      const record0 = await program.account.ownershipRecord.fetch(record0Pda);
+      expect(record0.sequence).to.equal(0);
+      expect(record0.newOwner.toBase58()).to.equal(identityAPda.toBase58());
+      expect(record0.transferType).to.equal(0);
+      console.log("  [Provenance] Genesis mint recorded on-chain at seq 0");
+    });
+
+    it("Transfers resource with atomic on-chain provenance record (seq 1)", async () => {
+      const [record1Pda] = client.getOwnershipRecordPda(provResourcePda, 1);
+
+      await program.methods
+        .transferResourceWithProvenance(1)
+        .accountsPartial({
+          ownershipRecord: record1Pda,
+          resource: provResourcePda,
+          organization: orgPda,
+          currentOwner: identityAPda,
+          controller: userA.publicKey,
+          newOwner: identityBPda,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userA])
+        .rpc();
+
+      const resource = await program.account.resource.fetch(provResourcePda);
+      expect(resource.owner.toBase58()).to.equal(identityBPda.toBase58());
+
+      const record1 = await program.account.ownershipRecord.fetch(record1Pda);
+      expect(record1.sequence).to.equal(1);
+      expect(record1.previousOwner.toBase58()).to.equal(identityAPda.toBase58());
+      expect(record1.newOwner.toBase58()).to.equal(identityBPda.toBase58());
+      expect(record1.transferType).to.equal(1); // Transfer
+      console.log("  [Provenance] Atomic transfer + provenance record verified at seq 1");
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Custom Roles & Teams Architecture Tests
+  // --------------------------------------------------------------------------
+  describe("Custom Roles & Teams Architecture", () => {
+    const customRoleId = 101;
+    let customRolePda: PublicKey;
+    const teamId = 42;
+    let teamPda: PublicKey;
+    let teamMemberPda: PublicKey;
+
+    it("Creates a custom organizational role with specific permission bitmasks", async () => {
+      [customRolePda] = client.getCustomRolePda(orgPda, customRoleId);
+      const permissions = PERMISSIONS.CREATE_RESOURCE.or(PERMISSIONS.TRANSFER_RESOURCE);
+
+      await program.methods
+        .createCustomRole(customRoleId, "DevOps Vault Specialist", permissions)
+        .accountsPartial({
+          customRole: customRolePda,
+          organization: orgPda,
+          authority: orgAuthority.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const customRole = await program.account.customRole.fetch(customRolePda);
+      expect(customRole.roleId).to.equal(customRoleId);
+      expect(customRole.permissions.toString()).to.equal(permissions.toString());
+      const nameStr = Buffer.from(customRole.name).toString("utf8").replace(/\0/g, "");
+      expect(nameStr).to.equal("DevOps Vault Specialist");
+      console.log("  [Roles] Custom role 'DevOps Vault Specialist' created with permission bitmask");
+    });
+
+    it("Creates a team under the organization with whole-team role permissions", async () => {
+      [teamPda] = client.getTeamPda(orgPda, teamId);
+      const teamPerms = PERMISSIONS.CREATE_RESOURCE.or(PERMISSIONS.TRANSFER_RESOURCE).or(PERMISSIONS.VERIFY);
+
+      await program.methods
+        .createTeam(teamId, "Core Infrastructure Ops", teamPerms)
+        .accountsPartial({
+          team: teamPda,
+          organization: orgPda,
+          authority: orgAuthority.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const team = await program.account.team.fetch(teamPda);
+      expect(team.teamId).to.equal(teamId);
+      expect(team.memberCount).to.equal(0);
+      const nameStr = Buffer.from(team.name).toString("utf8").replace(/\0/g, "");
+      expect(nameStr).to.equal("Core Infrastructure Ops");
+      console.log("  [Teams] Team 'Core Infrastructure Ops' created with whole-team role mask");
+    });
+
+    it("Assigns new role permissions to the team as a whole", async () => {
+      const updatedPerms = PERMISSIONS.CREATE_RESOURCE
+        .or(PERMISSIONS.TRANSFER_RESOURCE)
+        .or(PERMISSIONS.VERIFY)
+        .or(PERMISSIONS.MANAGE_ROLES);
+
+      await program.methods
+        .assignTeamRoles(updatedPerms)
+        .accountsPartial({
+          team: teamPda,
+          organization: orgPda,
+          authority: orgAuthority.publicKey,
+        })
+        .rpc();
+
+      const team = await program.account.team.fetch(teamPda);
+      expect(team.assignedRolesMask.toString()).to.equal(updatedPerms.toString());
+      console.log("  [Teams] Whole-team role permissions successfully updated");
+    });
+
+    it("Adds identity to team and tracks team membership", async () => {
+      [teamMemberPda] = client.getTeamMemberPda(teamPda, identityBPda);
+
+      await program.methods
+        .addTeamMember()
+        .accountsPartial({
+          teamMember: teamMemberPda,
+          team: teamPda,
+          organization: orgPda,
+          identity: identityBPda,
+          authority: orgAuthority.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const team = await program.account.team.fetch(teamPda);
+      expect(team.memberCount).to.equal(1);
+
+      const member = await program.account.teamMember.fetch(teamMemberPda);
+      expect(member.identity.toBase58()).to.equal(identityBPda.toBase58());
+      console.log("  [Teams] User B added to Core Infrastructure Ops (memberCount = 1)");
+    });
+
+    it("Removes identity from team and decrements member count", async () => {
+      await program.methods
+        .removeTeamMember()
+        .accountsPartial({
+          teamMember: teamMemberPda,
+          team: teamPda,
+          organization: orgPda,
+          identity: identityBPda,
+          authority: orgAuthority.publicKey,
+          payer: orgAuthority.publicKey,
+        })
+        .rpc();
+
+      const team = await program.account.team.fetch(teamPda);
+      expect(team.memberCount).to.equal(0);
+      console.log("  [Teams] User B removed from team, PDA closed (memberCount = 0)");
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Identity Key Recovery Protocol (Mitigating Key Loss Risk)
+  // --------------------------------------------------------------------------
+  describe("Identity Key Recovery Protocol", () => {
+    let recoveryPda: PublicKey;
+    const guardian1 = Keypair.generate();
+    const guardian2 = Keypair.generate();
+    const newController = Keypair.generate();
+
+    before(async () => {
+      const airdrop1 = await provider.connection.requestAirdrop(guardian1.publicKey, LAMPORTS_PER_SOL);
+      await provider.connection.confirmTransaction(airdrop1);
+      const airdrop2 = await provider.connection.requestAirdrop(guardian2.publicKey, LAMPORTS_PER_SOL);
+      await provider.connection.confirmTransaction(airdrop2);
+    });
+
+    it("Configures 2-of-2 guardian recovery for Identity C", async () => {
+      [recoveryPda] = client.getIdentityRecoveryPda(identityCPda);
+
+      await program.methods
+        .configureIdentityRecovery([guardian1.publicKey, guardian2.publicKey], 2)
+        .accountsPartial({
+          recovery: recoveryPda,
+          identity: identityCPda,
+          controller: userC.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userC])
+        .rpc();
+
+      const recovery = await program.account.identityRecovery.fetch(recoveryPda);
+      expect(recovery.threshold).to.equal(2);
+      expect(recovery.guardiansCount).to.equal(2);
+      expect(recovery.guardians[0].toBase58()).to.equal(guardian1.publicKey.toBase58());
+      expect(recovery.guardians[1].toBase58()).to.equal(guardian2.publicKey.toBase58());
+      expect(recovery.recoveryInProgress).to.be.false;
+      console.log("  [Recovery] 2-of-2 guardian recovery configured for User C");
+    });
+
+    it("Guardian 1 initiates key recovery proposing new controller", async () => {
+      await program.methods
+        .initiateIdentityRecovery(newController.publicKey)
+        .accountsPartial({
+          recovery: recoveryPda,
+          identity: identityCPda,
+          guardian: guardian1.publicKey,
+        })
+        .signers([guardian1])
+        .rpc();
+
+      const recovery = await program.account.identityRecovery.fetch(recoveryPda);
+      expect(recovery.recoveryInProgress).to.be.true;
+      expect(recovery.proposedNewController.toBase58()).to.equal(newController.publicKey.toBase58());
+      expect(recovery.approvalsMask).to.equal(1); // 1st guardian approved
+      console.log("  [Recovery] Guardian 1 initiated recovery (approvals: 1/2)");
+    });
+
+    it("Cannot execute recovery before meeting the 2-of-2 threshold", async () => {
+      try {
+        await program.methods
+          .executeIdentityRecovery()
+          .accountsPartial({
+            recovery: recoveryPda,
+            identity: identityCPda,
+          })
+          .rpc();
+        expect.fail("Should have failed with RecoveryThresholdNotMet");
+      } catch (err: any) {
+        expect(err.message).to.include("RecoveryThresholdNotMet");
+        console.log("  [Recovery] Successfully blocked premature execution with 1/2 approvals");
+      }
+    });
+
+    it("Guardian 2 approves recovery and executes controller key rotation", async () => {
+      await program.methods
+        .approveIdentityRecovery()
+        .accountsPartial({
+          recovery: recoveryPda,
+          identity: identityCPda,
+          guardian: guardian2.publicKey,
+        })
+        .signers([guardian2])
+        .rpc();
+
+      const recoveryAfterApprove = await program.account.identityRecovery.fetch(recoveryPda);
+      expect(recoveryAfterApprove.approvalsMask).to.equal(3); // bits 0 and 1 set = 2 approvals
+
+      // Execute controller rotation
+      await program.methods
+        .executeIdentityRecovery()
+        .accountsPartial({
+          recovery: recoveryPda,
+          identity: identityCPda,
+        })
+        .rpc();
+
+      const identity = await program.account.identity.fetch(identityCPda);
+      expect(identity.controller.toBase58()).to.equal(newController.publicKey.toBase58());
+
+      const recoveryFinal = await program.account.identityRecovery.fetch(recoveryPda);
+      expect(recoveryFinal.recoveryInProgress).to.be.false;
+      expect(recoveryFinal.approvalsMask).to.equal(0);
+      console.log("  [Recovery] Controller rotated to new device key without changing Identity PDA!");
+    });
+  });
+
   after(async () => {
     // Clean up event listeners to exit cleanly
     for (const id of listenerIds) {
