@@ -84,4 +84,59 @@ pub mod identity_registry {
     ) -> Result<()> {
         handler_verify_permission(ctx, required_permission)
     }
+
+    /// Initialize the Proof of Authority (PoA) consensus quorum for an Organization.
+    pub fn initialize_quorum(
+        ctx: Context<InitializeQuorum>,
+        threshold: u8,
+        authorities: Vec<Pubkey>,
+    ) -> Result<()> {
+        handler_initialize_quorum(ctx, threshold, authorities)
+    }
+
+    /// Create a Consensus Proposal for a critical administrative action.
+    pub fn create_proposal(
+        ctx: Context<CreateProposal>,
+        action_type: u8,
+        target: Pubkey,
+        extra_data: [u8; 32],
+        execution_timelock: i64,
+    ) -> Result<()> {
+        handler_create_proposal(ctx, action_type, target, extra_data, execution_timelock)
+    }
+
+    /// Approve an active Consensus Proposal by an authorized Quorum member.
+    pub fn approve_proposal(ctx: Context<ApproveProposal>) -> Result<()> {
+        handler_approve_proposal(ctx)
+    }
+
+    /// Reject and cancel an active Consensus Proposal by an authorized Quorum member.
+    pub fn reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+        handler_reject_proposal(ctx)
+    }
+
+    /// Execute an approved Resource Revocation proposal once threshold consensus is reached.
+    pub fn execute_revoke_resource_proposal(
+        ctx: Context<ExecuteRevokeResourceProposal>,
+    ) -> Result<()> {
+        handler_execute_revoke_resource_proposal(ctx)
+    }
+
+    /// Execute an approved Role Assignment proposal once threshold consensus is reached.
+    pub fn execute_assign_role_proposal(
+        ctx: Context<ExecuteAssignRoleProposal>,
+        expires_at: i64,
+    ) -> Result<()> {
+        handler_execute_assign_role_proposal(ctx, expires_at)
+    }
+
+    /// Execute an approved Quorum Rotation proposal once threshold consensus is reached.
+    pub fn execute_rotate_quorum_proposal(
+        ctx: Context<ExecuteRotateQuorumProposal>,
+        new_threshold: u8,
+        new_authorities: Vec<Pubkey>,
+    ) -> Result<()> {
+        handler_execute_rotate_quorum_proposal(ctx, new_threshold, new_authorities)
+    }
 }
+

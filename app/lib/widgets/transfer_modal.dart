@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/models.dart';
+import '../services/biometric_service.dart';
 import '../services/solana_service.dart';
 import '../theme/app_theme.dart';
 
@@ -43,6 +45,59 @@ class _TransferSheetState extends State<_TransferSheet> {
     super.dispose();
   }
 
+  Future<void> _startBiometricTransfer(BuildContext context) async {
+    final recipient = _recipientCtrl.text.trim();
+    if (recipient.isEmpty) {
+      setState(() => _errorMessage = 'Please enter a recipient email or address.');
+      return;
+    }
+
+    setState(() => _errorMessage = null);
+
+    try {
+      final authenticated = await BiometricService.authenticate(
+        reason: widget.isGrantMode
+            ? 'Touch fingerprint sensor to authorize access grant for "${_selectedAsset.name}" to $recipient'
+            : 'Touch fingerprint sensor to sign transfer of "${_selectedAsset.name}" to $recipient',
+      );
+
+      if (!authenticated) {
+        setState(() {
+          _errorMessage = 'Biometric authentication cancelled. Fingerprint verification is required to sign.';
+        });
+        return;
+      }
+
+      final ok = await widget.service.transferAsset(
+        asset: _selectedAsset,
+        recipientAddress: 'pda_$recipient',
+        recipientLabel: recipient,
+      );
+
+      if (ok) {
+        setState(() => _isSuccess = true);
+      } else {
+        setState(() {
+          _errorMessage = 'On-chain execution blocked: Caller lacks required permission bitmask.';
+        });
+      }
+    } on PlatformException catch (e) {
+      if (e.code == 'NotEnrolled' || e.code == 'PasscodeNotSet') {
+        setState(() {
+          _errorMessage = 'No fingerprint enrolled on device. Please enroll a fingerprint in Android Settings > Security > Fingerprint, or test using emulator controls.';
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Biometric error (${e.code}): ${e.message}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Biometric authentication failed: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isSuccess) {
@@ -72,6 +127,26 @@ class _TransferSheetState extends State<_TransferSheet> {
               'On-chain transaction committed to Solana Devnet.\nGas fee paid by Organization: 0 SOL charged to you.',
               style: const TextStyle(fontSize: 13, color: AppColors.textDim),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.purple.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.purple.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.fingerprint_rounded, size: 14, color: AppColors.purple),
+                  SizedBox(width: 6),
+                  Text(
+                    'Biometric Signature Verified (Secure Enclave)',
+                    style: TextStyle(fontSize: 11, color: AppColors.purple, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -286,58 +361,20 @@ class _TransferSheetState extends State<_TransferSheet> {
 
           const SizedBox(height: 20),
 
-          // Confirm Button
-          ElevatedButton(
-            onPressed: widget.service.isLoading
-                ? null
-                : () async {
-                    final recipient = _recipientCtrl.text.trim();
-                    if (recipient.isEmpty) {
-                      setState(() => _errorMessage = 'Please enter a recipient email or address.');
-                      return;
-                    }
-
-                    setState(() => _errorMessage = null);
-                    bool ok = false;
-                    if (widget.isGrantMode) {
-                      ok = await widget.service.transferAsset(
-                        asset: _selectedAsset,
-                        recipientAddress: 'pda_$recipient',
-                        recipientLabel: recipient,
-                      );
-                    } else {
-                      ok = await widget.service.transferAsset(
-                        asset: _selectedAsset,
-                        recipientAddress: 'pda_$recipient',
-                        recipientLabel: recipient,
-                      );
-                    }
-
-                    if (ok) {
-                      setState(() => _isSuccess = true);
-                    } else {
-                      setState(() {
-                        _errorMessage =
-                            'On-chain execution blocked: Caller lacks required permission bitmask.';
-                      });
-                    }
-                  },
+          // Confirm Button with Biometric Hardware Gating
+          ElevatedButton.icon(
+            onPressed: widget.service.isLoading ? null : () => _startBiometricTransfer(context),
+            icon: const Icon(Icons.fingerprint_rounded, size: 18),
+            label: Text(
+              widget.isGrantMode ? 'Sign with Fingerprint & Grant' : 'Sign with Fingerprint & Transfer',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
-            child: widget.service.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : Text(
-                    widget.isGrantMode ? 'Confirm Access Grant' : 'Confirm & Transfer Asset',
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
           ),
         ],
       ),
@@ -406,3 +443,5 @@ class _FeeRow extends StatelessWidget {
     );
   }
 }
+
+

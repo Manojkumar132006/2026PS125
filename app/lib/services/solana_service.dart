@@ -31,9 +31,14 @@ class SolanaService extends ChangeNotifier {
   // Real-world Activity / Audit Trail
   final List<ActivityItem> activities = [];
 
+  // Proof of Authority (PoA) Consensus State
+  final List<ConsensusProposalModel> proposals = [];
+  late QuorumConfigModel quorumConfig;
+
   SolanaService() {
     _initializeOrganizations();
     _initializeAssets();
+    _initializePoAConsensus();
     _seedSystemActivities();
     checkConnection();
   }
@@ -1097,6 +1102,223 @@ class SolanaService extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Proof of Authority (PoA) Consensus & Biometric Governance
+  // ---------------------------------------------------------------------------
+
+  void _initializePoAConsensus() {
+    quorumConfig = QuorumConfigModel(
+      threshold: 2,
+      totalAuthorities: 3,
+      authorityNames: [
+        'Elena Rostova (Guardian 1)',
+        'Marcus Vance (Guardian 2)',
+        'Sarah Jenkins (Guardian 3)',
+      ],
+      authorityPubkeys: [
+        'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        'Auth2mK8v7YpM2nQv8rTxLm3sDpMvBaCxYpZ4b',
+        'Auth3rT9y7YpM2nQv8rTxLm3sDpMvBaCxYpZ1w',
+      ],
+      biometricEnclaveActive: true,
+    );
+
+    proposals.addAll([
+      ConsensusProposalModel(
+        proposalId: 0,
+        title: 'Revoke Compromised Asset: Quantum Encryption Key',
+        description: 'Permanent on-chain revocation of Asset PDA due to suspected endpoint security breach.',
+        proposerName: 'Elena Rostova (Guardian 1)',
+        proposerPubkey: 'Auth1xQw7YpM2nQv8rTxLm3sDpMvBaCxYpZ9x',
+        actionType: 3, // Revoke Resource
+        targetAddress: 'pda_asset_3_9xQw7YpM2nQv8rTxLm3s',
+        targetLabel: 'Quantum Encryption Key',
+        requiredThreshold: 2,
+        currentApprovals: 1,
+        approvedBy: ['Elena Rostova (Guardian 1)'],
+        status: ProposalStatus.pending,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 42)),
+        isBiometricGated: true,
+      ),
+      ConsensusProposalModel(
+        proposalId: 1,
+        title: 'Consensus Assignment of ADMIN Role to Sarah Jenkins',
+        description: 'Consensus assignment of ROLE_ADMIN (0x3F) to Identity PDA id_pda_sarah_j8x.',
+        proposerName: 'Marcus Vance (Guardian 2)',
+        proposerPubkey: 'Auth2mK8v7YpM2nQv8rTxLm3sDpMvBaCxYpZ4b',
+        actionType: 1, // Assign Role
+        targetAddress: 'id_pda_sarah_j8xQw7YpM2n',
+        targetLabel: 'Sarah Jenkins',
+        requiredThreshold: 2,
+        currentApprovals: 2,
+        approvedBy: ['Marcus Vance (Guardian 2)', 'Sarah Jenkins (Guardian 3)'],
+        status: ProposalStatus.approved,
+        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+        isBiometricGated: true,
+      ),
+    ]);
+  }
+
+  /// Create a new PoA Consensus Proposal
+  Future<bool> createConsensusProposal({
+    required String title,
+    required String description,
+    required int actionType,
+    required String targetAddress,
+    required String targetLabel,
+  }) async {
+    if (currentUser == null) return false;
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    final newProposal = ConsensusProposalModel(
+      proposalId: proposals.length,
+      title: title,
+      description: description,
+      proposerName: currentUser!.name,
+      proposerPubkey: currentUser!.publicKey,
+      actionType: actionType,
+      targetAddress: targetAddress,
+      targetLabel: targetLabel,
+      requiredThreshold: quorumConfig.threshold,
+      currentApprovals: 1,
+      approvedBy: [currentUser!.name],
+      status: (1 >= quorumConfig.threshold) ? ProposalStatus.approved : ProposalStatus.pending,
+      createdAt: DateTime.now(),
+      isBiometricGated: true,
+    );
+
+    proposals.insert(0, newProposal);
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'PoA Proposal Created',
+        subtitle: '${newProposal.title} (1/${quorumConfig.threshold} Approvals)',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '5PoaProp${Random().nextInt(999999)}Tx982',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Approve a PoA Consensus Proposal with Biometric Hardware Gating
+  Future<bool> approveConsensusProposal(int proposalId, {required String authorityName}) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    final proposal = proposals.firstWhere((p) => p.proposalId == proposalId);
+    if (!proposal.approvedBy.contains(authorityName)) {
+      proposal.approvedBy.add(authorityName);
+      proposal.currentApprovals += 1;
+      if (proposal.currentApprovals >= proposal.requiredThreshold) {
+        proposal.status = ProposalStatus.approved;
+      }
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'PoA Consensus Endorsement',
+        subtitle: '$authorityName endorsed Proposal #$proposalId (${proposal.currentApprovals}/${proposal.requiredThreshold})',
+        type: ActivityType.grant,
+        timestamp: DateTime.now(),
+        signature: '7PoaAppr${Random().nextInt(999999)}Vte411',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Reject a PoA Consensus Proposal
+  Future<bool> rejectConsensusProposal(int proposalId, {required String authorityName}) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final proposal = proposals.firstWhere((p) => p.proposalId == proposalId);
+    proposal.status = ProposalStatus.rejected;
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'PoA Proposal Vetoed',
+        subtitle: 'Proposal #$proposalId rejected by $authorityName',
+        type: ActivityType.securityReject,
+        timestamp: DateTime.now(),
+        signature: '9PoaVeto${Random().nextInt(999999)}Rej102',
+        isGasSponsored: true,
+        isRejected: true,
+        rejectionReason: 'Vetoed by Authority Quorum Member',
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// Execute an approved PoA Consensus Proposal on Solana
+  Future<bool> executeConsensusProposal(int proposalId) async {
+    isLoading = true;
+    notifyListeners();
+
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    final proposal = proposals.firstWhere((p) => p.proposalId == proposalId);
+    if (proposal.currentApprovals < proposal.requiredThreshold) {
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    proposal.status = ProposalStatus.executed;
+
+    // Apply action
+    if (proposal.actionType == 3) {
+      // Revoke Resource
+      for (final a in assets) {
+        if (a.name.toLowerCase() == proposal.targetLabel.toLowerCase() ||
+            a.pdaAddress == proposal.targetAddress) {
+          a.isRevoked = true;
+        }
+      }
+    }
+
+    activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_${DateTime.now().millisecondsSinceEpoch}',
+        title: 'PoA Proposal Executed On-Chain',
+        subtitle: '${proposal.title} enforced by 2-of-3 Quorum',
+        type: ActivityType.deploy,
+        timestamp: DateTime.now(),
+        signature: '4PoaExe${Random().nextInt(999999)}Sol771',
+        isGasSponsored: true,
+      ),
+    );
+
+    isLoading = false;
+    notifyListeners();
+    return true;
   }
 }
 

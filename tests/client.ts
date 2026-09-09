@@ -18,6 +18,21 @@ export const ROLE_IDS = {
   AUDITOR: 3,
 };
 
+export const ACTION_TYPES = {
+  ASSIGN_ROLE: 1,
+  REVOKE_ROLE: 2,
+  REVOKE_RESOURCE: 3,
+  ROTATE_QUORUM: 4,
+  SET_IDENTITY_STATUS: 5,
+};
+
+export const PROPOSAL_STATUS = {
+  PENDING: 0,
+  APPROVED: 1,
+  EXECUTED: 2,
+  REJECTED: 3,
+};
+
 export class IdentityRegistryClient {
   program: Program<IdentityRegistry>;
   provider: anchor.AnchorProvider;
@@ -59,6 +74,20 @@ export class IdentityRegistryClient {
   getGrantPda(identity: PublicKey, resource: PublicKey, role: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("grant"), identity.toBuffer(), resource.toBuffer(), role.toBuffer()],
+      this.program.programId
+    );
+  }
+
+  getQuorumPda(organization: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("quorum"), organization.toBuffer()],
+      this.program.programId
+    );
+  }
+
+  getProposalPda(organization: PublicKey, proposalId: BN): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("proposal"), organization.toBuffer(), proposalId.toArrayLike(Buffer, "le", 8)],
       this.program.programId
     );
   }

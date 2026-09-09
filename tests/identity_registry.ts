@@ -3,7 +3,7 @@ import { Program, BN } from "@coral-xyz/anchor";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
 import { IdentityRegistry } from "../target/types/identity_registry";
-import { IdentityRegistryClient, PERMISSIONS, ROLE_IDS } from "./client";
+import { IdentityRegistryClient, PERMISSIONS, ROLE_IDS, ACTION_TYPES, PROPOSAL_STATUS } from "./client";
 
 describe("Identity Registry MVP", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -916,6 +916,397 @@ describe("Identity Registry MVP", () => {
     });
   });
 
+  describe("Proof of Authority (PoA) Consensus Engine", () => {
+    const auth1 = Keypair.generate();
+    const auth2 = Keypair.generate();
+    const auth3 = Keypair.generate();
+    const rogueAttacker = Keypair.generate();
+
+    const [quorumPda] = client.getQuorumPda(orgPda);
+    const poaResourceId = new BN(999);
+    const [poaResourcePda] = client.getResourcePda(orgPda, poaResourceId);
+
+    before(async () => {
+      // Fund PoA authorities
+      for (const kp of [auth1, auth2, auth3, rogueAttacker]) {
+        const sig = await provider.connection.requestAirdrop(kp.publicKey, 2 * LAMPORTS_PER_SOL);
+        await provider.connection.confirmTransaction(sig);
+      }
+
+      // Create a test resource #999 to test consensus revocation
+      const [identityAPda] = client.getIdentityPda(userA.publicKey);
+      const [assetManagerRolePda] = client.getRolePda(orgPda, ROLE_IDS.ASSET_MANAGER);
+      const [grantAOrgPda] = client.getGrantPda(identityAPda, orgPda, assetManagerRolePda);
+
+      await program.methods
+        .createResource(poaResourceId, 1)
+        .accountsPartial({
+          resource: poaResourcePda,
+          organization: orgPda,
+          creatorIdentity: identityAPda,
+          controller: userA.publicKey,
+          grant: grantAOrgPda,
+          role: assetManagerRolePda,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userA])
+        .rpc();
+    });
+
+    it("Rejects invalid quorum configuration (threshold 0)", async () => {
+      let failed = false;
+      try {
+        await program.methods
+          .initializeQuorum(0, [auth1.publicKey, auth2.publicKey])
+          .accountsPartial({
+            quorum: quorumPda,
+            organization: orgPda,
+            authority: orgAuthority.publicKey,
+            payer: orgAuthority.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+      } catch (err: any) {
+        failed = true;
+        expect(err.toString()).to.include("InvalidQuorumConfig");
+      }
+      expect(failed).to.be.true;
+    });
+
+    it("Initializes 2-of-3 Proof of Authority Quorum", async () => {
+      const tx = await program.methods
+        .initializeQuorum(2, [auth1.publicKey, auth2.publicKey, auth3.publicKey])
+        .accountsPartial({
+          quorum: quorumPda,
+          organization: orgPda,
+          authority: orgAuthority.publicKey,
+          payer: orgAuthority.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log("  [PoA] Quorum initialized (2-of-3 threshold):", tx);
+
+      const quorumAccount = await program.account.authorityQuorum.fetch(quorumPda);
+      expect(quorumAccount.threshold).to.equal(2);
+      expect(quorumAccount.authoritiesCount).to.equal(3);
+      expect(quorumAccount.authorities[0].toBase58()).to.equal(auth1.publicKey.toBase58());
+      expect(quorumAccount.authorities[1].toBase58()).to.equal(auth2.publicKey.toBase58());
+      expect(quorumAccount.authorities[2].toBase58()).to.equal(auth3.publicKey.toBase58());
+      expect(quorumAccount.proposalCount.toNumber()).to.equal(0);
+    });
+
+    it("Rejects non-authority attempting to propose a critical action", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+      const dummyExtra = new Array(32).fill(0);
+
+      let rejected = false;
+      try {
+        await program.methods
+          .createProposal(ACTION_TYPES.REVOKE_RESOURCE, poaResourcePda, dummyExtra, new BN(0))
+          .accountsPartial({
+            proposal: proposal0Pda,
+            quorum: quorumPda,
+            organization: orgPda,
+            proposer: rogueAttacker.publicKey,
+            payer: rogueAttacker.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([rogueAttacker])
+          .rpc();
+      } catch (err: any) {
+        rejected = true;
+        expect(err.toString()).to.include("NotAnAuthority");
+      }
+      expect(rejected).to.be.true;
+    });
+
+    it("Authority 1 creates a Proposal to revoke Resource #999 (1/2 Approvals)", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+      const dummyExtra = new Array(32).fill(0);
+
+      const tx = await program.methods
+        .createProposal(ACTION_TYPES.REVOKE_RESOURCE, poaResourcePda, dummyExtra, new BN(0))
+        .accountsPartial({
+          proposal: proposal0Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          proposer: auth1.publicKey,
+          payer: auth1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([auth1])
+        .rpc();
+
+      console.log("  [PoA] Proposal #0 created by Authority 1:", tx);
+
+      const proposal = await program.account.consensusProposal.fetch(proposal0Pda);
+      expect(proposal.proposalId.toNumber()).to.equal(0);
+      expect(proposal.proposer.toBase58()).to.equal(auth1.publicKey.toBase58());
+      expect(proposal.actionType).to.equal(ACTION_TYPES.REVOKE_RESOURCE);
+      expect(proposal.target.toBase58()).to.equal(poaResourcePda.toBase58());
+      expect(proposal.approvalCount).to.equal(1);
+      expect(proposal.approvalsMask).to.equal(1); // bit 0 set
+      expect(proposal.status).to.equal(PROPOSAL_STATUS.PENDING);
+    });
+
+    it("Compromised Authority 1 alone CANNOT execute the proposal (QuorumNotReached)", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      let rejected = false;
+      try {
+        await program.methods
+          .executeRevokeResourceProposal()
+          .accountsPartial({
+            proposal: proposal0Pda,
+            quorum: quorumPda,
+            organization: orgPda,
+            resource: poaResourcePda,
+            executor: auth1.publicKey,
+          })
+          .signers([auth1])
+          .rpc();
+      } catch (err: any) {
+        rejected = true;
+        expect(err.toString()).to.include("QuorumNotReached");
+      }
+      expect(rejected).to.be.true;
+      console.log("  [Security Passed] Single compromised authority blocked from executing without quorum!");
+    });
+
+    it("Authority 1 cannot double-vote on the same proposal", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      let rejected = false;
+      try {
+        await program.methods
+          .approveProposal()
+          .accountsPartial({
+            proposal: proposal0Pda,
+            quorum: quorumPda,
+            organization: orgPda,
+            authority: auth1.publicKey,
+          })
+          .signers([auth1])
+          .rpc();
+      } catch (err: any) {
+        rejected = true;
+        expect(err.toString()).to.include("ProposalAlreadyVoted");
+      }
+      expect(rejected).to.be.true;
+    });
+
+    it("Unauthorized attacker cannot vote on the proposal", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      let rejected = false;
+      try {
+        await program.methods
+          .approveProposal()
+          .accountsPartial({
+            proposal: proposal0Pda,
+            quorum: quorumPda,
+            organization: orgPda,
+            authority: rogueAttacker.publicKey,
+          })
+          .signers([rogueAttacker])
+          .rpc();
+      } catch (err: any) {
+        rejected = true;
+        expect(err.toString()).to.include("NotAnAuthority");
+      }
+      expect(rejected).to.be.true;
+    });
+
+    it("Authority 2 approves Proposal #0 -> Consensus Reached (2/2)", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      const tx = await program.methods
+        .approveProposal()
+        .accountsPartial({
+          proposal: proposal0Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          authority: auth2.publicKey,
+        })
+        .signers([auth2])
+        .rpc();
+
+      console.log("  [PoA] Authority 2 approved proposal #0:", tx);
+
+      const proposal = await program.account.consensusProposal.fetch(proposal0Pda);
+      expect(proposal.approvalCount).to.equal(2);
+      expect(proposal.approvalsMask).to.equal(3); // bits 0 & 1 set
+      expect(proposal.status).to.equal(PROPOSAL_STATUS.APPROVED);
+    });
+
+    it("Executes approved Revoke Resource Proposal via PoA Consensus", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      const tx = await program.methods
+        .executeRevokeResourceProposal()
+        .accountsPartial({
+          proposal: proposal0Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          resource: poaResourcePda,
+          executor: auth2.publicKey,
+        })
+        .signers([auth2])
+        .rpc();
+
+      console.log("  [PoA] Revoke Resource executed via consensus:", tx);
+
+      const resource = await program.account.resource.fetch(poaResourcePda);
+      expect(resource.status).to.equal(2); // STATUS_REVOKED
+
+      const proposal = await program.account.consensusProposal.fetch(proposal0Pda);
+      expect(proposal.status).to.equal(PROPOSAL_STATUS.EXECUTED);
+    });
+
+    it("Rejects re-executing an already executed proposal", async () => {
+      const proposalId = new BN(0);
+      const [proposal0Pda] = client.getProposalPda(orgPda, proposalId);
+
+      let rejected = false;
+      try {
+        await program.methods
+          .executeRevokeResourceProposal()
+          .accountsPartial({
+            proposal: proposal0Pda,
+            quorum: quorumPda,
+            organization: orgPda,
+            resource: poaResourcePda,
+            executor: auth2.publicKey,
+          })
+          .signers([auth2])
+          .rpc();
+      } catch (err: any) {
+        rejected = true;
+        expect(err.toString()).to.include("ProposalClosed");
+      }
+      expect(rejected).to.be.true;
+    });
+
+    it("Consensus Role Assignment: Authorities 1 and 3 grant ADMIN role to User B", async () => {
+      const proposalId = new BN(1);
+      const [proposal1Pda] = client.getProposalPda(orgPda, proposalId);
+      const [identityBPda] = client.getIdentityPda(userB.publicKey);
+      const [adminRolePda] = client.getRolePda(orgPda, ROLE_IDS.ADMIN);
+      const [grantBAdminPda] = client.getGrantPda(identityBPda, orgPda, adminRolePda);
+      const dummyExtra = new Array(32).fill(0);
+
+      // 1. Auth 1 proposes
+      await program.methods
+        .createProposal(ACTION_TYPES.ASSIGN_ROLE, identityBPda, dummyExtra, new BN(0))
+        .accountsPartial({
+          proposal: proposal1Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          proposer: auth1.publicKey,
+          payer: auth1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([auth1])
+        .rpc();
+
+      // 2. Auth 3 approves -> 2-of-3 reached
+      await program.methods
+        .approveProposal()
+        .accountsPartial({
+          proposal: proposal1Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          authority: auth3.publicKey,
+        })
+        .signers([auth3])
+        .rpc();
+
+      // 3. Execute role assignment proposal
+      const tx = await program.methods
+        .executeAssignRoleProposal(new BN(0))
+        .accountsPartial({
+          proposal: proposal1Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          identity: identityBPda,
+          role: adminRolePda,
+          grant: grantBAdminPda,
+          payer: auth1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([auth1])
+        .rpc();
+
+      console.log("  [PoA] Role assigned via consensus:", tx);
+
+      const grant = await program.account.accessGrant.fetch(grantBAdminPda);
+      expect(grant.active).to.be.true;
+      expect(grant.identity.toBase58()).to.equal(identityBPda.toBase58());
+      expect(grant.role.toBase58()).to.equal(adminRolePda.toBase58());
+    });
+
+    it("Consensus Authority Rotation: Rotates authorities to replace compromised key", async () => {
+      const proposalId = new BN(2);
+      const [proposal2Pda] = client.getProposalPda(orgPda, proposalId);
+      const newAuth4 = Keypair.generate();
+      const dummyExtra = new Array(32).fill(0);
+
+      // Auth 2 proposes rotating quorum to [auth2, auth3, newAuth4] (replacing auth1)
+      await program.methods
+        .createProposal(ACTION_TYPES.ROTATE_QUORUM, quorumPda, dummyExtra, new BN(0))
+        .accountsPartial({
+          proposal: proposal2Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          proposer: auth2.publicKey,
+          payer: auth2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([auth2])
+        .rpc();
+
+      // Auth 3 approves -> 2-of-3 reached
+      await program.methods
+        .approveProposal()
+        .accountsPartial({
+          proposal: proposal2Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          authority: auth3.publicKey,
+        })
+        .signers([auth3])
+        .rpc();
+
+      // Execute rotation
+      const newAuthorities = [auth2.publicKey, auth3.publicKey, newAuth4.publicKey];
+      await program.methods
+        .executeRotateQuorumProposal(2, newAuthorities)
+        .accountsPartial({
+          proposal: proposal2Pda,
+          quorum: quorumPda,
+          organization: orgPda,
+          executor: auth2.publicKey,
+        })
+        .signers([auth2])
+        .rpc();
+
+      const updatedQuorum = await program.account.authorityQuorum.fetch(quorumPda);
+      expect(updatedQuorum.authorities[0].toBase58()).to.equal(auth2.publicKey.toBase58());
+      expect(updatedQuorum.authorities[1].toBase58()).to.equal(auth3.publicKey.toBase58());
+      expect(updatedQuorum.authorities[2].toBase58()).to.equal(newAuth4.publicKey.toBase58());
+      console.log("  [PoA] Quorum successfully rotated without auth1!");
+    });
+  });
+
   after(async () => {
     // Clean up event listeners to exit cleanly
     for (const id of listenerIds) {
@@ -925,3 +1316,4 @@ describe("Identity Registry MVP", () => {
     }
   });
 });
+

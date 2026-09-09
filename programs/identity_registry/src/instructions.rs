@@ -495,3 +495,501 @@ pub fn handler_verify_permission(
 
     Ok(())
 }
+
+// ----------------------------------------------------------------------------
+// Proof of Authority (PoA) Consensus Contexts & Handlers
+// ----------------------------------------------------------------------------
+
+#[derive(Accounts)]
+pub struct InitializeQuorum<'info> {
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + AuthorityQuorum::INIT_SPACE,
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    #[account(
+        constraint = authority.key() == organization.authority @ RegistryError::InvalidAuthority
+    )]
+    pub authority: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CreateProposal<'info> {
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + ConsensusProposal::INIT_SPACE,
+        seeds = [b"proposal", organization.key().as_ref(), &quorum.proposal_count.to_le_bytes()],
+        bump
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        mut,
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    pub proposer: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ApproveProposal<'info> {
+    #[account(
+        mut,
+        seeds = [b"proposal", organization.key().as_ref(), &proposal.proposal_id.to_le_bytes()],
+        bump = proposal.bump,
+        has_one = organization
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RejectProposal<'info> {
+    #[account(
+        mut,
+        seeds = [b"proposal", organization.key().as_ref(), &proposal.proposal_id.to_le_bytes()],
+        bump = proposal.bump,
+        has_one = organization
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ExecuteRevokeResourceProposal<'info> {
+    #[account(
+        mut,
+        seeds = [b"proposal", organization.key().as_ref(), &proposal.proposal_id.to_le_bytes()],
+        bump = proposal.bump,
+        has_one = organization
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    #[account(
+        mut,
+        seeds = [b"resource", organization.key().as_ref(), &resource.resource_id.to_le_bytes()],
+        bump = resource.bump,
+        has_one = organization
+    )]
+    pub resource: Account<'info, Resource>,
+    pub executor: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ExecuteAssignRoleProposal<'info> {
+    #[account(
+        mut,
+        seeds = [b"proposal", organization.key().as_ref(), &proposal.proposal_id.to_le_bytes()],
+        bump = proposal.bump,
+        has_one = organization
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    pub identity: Account<'info, Identity>,
+    pub role: Account<'info, Role>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + AccessGrant::INIT_SPACE,
+        seeds = [
+            b"grant",
+            identity.key().as_ref(),
+            organization.key().as_ref(),
+            role.key().as_ref()
+        ],
+        bump
+    )]
+    pub grant: Account<'info, AccessGrant>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ExecuteRotateQuorumProposal<'info> {
+    #[account(
+        mut,
+        seeds = [b"proposal", organization.key().as_ref(), &proposal.proposal_id.to_le_bytes()],
+        bump = proposal.bump,
+        has_one = organization
+    )]
+    pub proposal: Account<'info, ConsensusProposal>,
+    #[account(
+        mut,
+        seeds = [b"quorum", organization.key().as_ref()],
+        bump = quorum.bump,
+        has_one = organization
+    )]
+    pub quorum: Account<'info, AuthorityQuorum>,
+    pub organization: Account<'info, Organization>,
+    pub executor: Signer<'info>,
+}
+
+pub fn handler_initialize_quorum(
+    ctx: Context<InitializeQuorum>,
+    threshold: u8,
+    authorities: Vec<Pubkey>,
+) -> Result<()> {
+    require!(threshold > 0, RegistryError::InvalidQuorumConfig);
+    require!(authorities.len() >= threshold as usize, RegistryError::InvalidQuorumConfig);
+    require!(authorities.len() <= MAX_AUTHORITIES, RegistryError::InvalidQuorumConfig);
+
+    for i in 0..authorities.len() {
+        for j in (i + 1)..authorities.len() {
+            require!(authorities[i] != authorities[j], RegistryError::InvalidQuorumConfig);
+        }
+    }
+
+    let quorum = &mut ctx.accounts.quorum;
+    quorum.organization = ctx.accounts.organization.key();
+    quorum.threshold = threshold;
+    quorum.authorities_count = authorities.len() as u8;
+    let mut auth_array = [Pubkey::default(); MAX_AUTHORITIES];
+    for (i, auth) in authorities.iter().enumerate() {
+        auth_array[i] = *auth;
+    }
+    quorum.authorities = auth_array;
+    quorum.proposal_count = 0;
+    quorum.bump = ctx.bumps.quorum;
+
+    emit!(QuorumInitialized {
+        organization: quorum.organization,
+        threshold,
+        authorities_count: authorities.len() as u8,
+    });
+
+    Ok(())
+}
+
+pub fn handler_create_proposal(
+    ctx: Context<CreateProposal>,
+    action_type: u8,
+    target: Pubkey,
+    extra_data: [u8; 32],
+    execution_timelock: i64,
+) -> Result<()> {
+    let quorum = &mut ctx.accounts.quorum;
+    let proposer_key = ctx.accounts.proposer.key();
+
+    let mut proposer_idx = None;
+    for i in 0..(quorum.authorities_count as usize) {
+        if quorum.authorities[i] == proposer_key {
+            proposer_idx = Some(i);
+            break;
+        }
+    }
+    let idx = proposer_idx.ok_or(RegistryError::NotAnAuthority)?;
+
+    let clock = Clock::get()?;
+    let proposal = &mut ctx.accounts.proposal;
+    proposal.organization = ctx.accounts.organization.key();
+    proposal.proposal_id = quorum.proposal_count;
+    proposal.proposer = proposer_key;
+    proposal.action_type = action_type;
+    proposal.target = target;
+    proposal.extra_data = extra_data;
+    proposal.approvals_mask = 1 << idx;
+    proposal.approval_count = 1;
+    proposal.status = if proposal.approval_count >= quorum.threshold {
+        PROPOSAL_APPROVED
+    } else {
+        PROPOSAL_PENDING
+    };
+    proposal.created_at = clock.unix_timestamp;
+    proposal.execution_timelock = execution_timelock;
+    proposal.bump = ctx.bumps.proposal;
+
+    emit!(ProposalCreated {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        proposer: proposer_key,
+        action_type,
+        target,
+    });
+
+    emit!(ProposalApproved {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        authority: proposer_key,
+        approval_count: proposal.approval_count,
+    });
+
+    quorum.proposal_count += 1;
+
+    Ok(())
+}
+
+pub fn handler_approve_proposal(ctx: Context<ApproveProposal>) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let quorum = &ctx.accounts.quorum;
+    let authority_key = ctx.accounts.authority.key();
+
+    require!(
+        proposal.status == PROPOSAL_PENDING || proposal.status == PROPOSAL_APPROVED,
+        RegistryError::ProposalClosed
+    );
+
+    let mut auth_idx = None;
+    for i in 0..(quorum.authorities_count as usize) {
+        if quorum.authorities[i] == authority_key {
+            auth_idx = Some(i);
+            break;
+        }
+    }
+    let idx = auth_idx.ok_or(RegistryError::NotAnAuthority)?;
+
+    require!(
+        (proposal.approvals_mask & (1 << idx)) == 0,
+        RegistryError::ProposalAlreadyVoted
+    );
+
+    proposal.approvals_mask |= 1 << idx;
+    proposal.approval_count += 1;
+    if proposal.approval_count >= quorum.threshold {
+        proposal.status = PROPOSAL_APPROVED;
+    }
+
+    emit!(ProposalApproved {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        authority: authority_key,
+        approval_count: proposal.approval_count,
+    });
+
+    Ok(())
+}
+
+pub fn handler_reject_proposal(ctx: Context<RejectProposal>) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let quorum = &ctx.accounts.quorum;
+    let authority_key = ctx.accounts.authority.key();
+
+    require!(
+        proposal.status == PROPOSAL_PENDING || proposal.status == PROPOSAL_APPROVED,
+        RegistryError::ProposalClosed
+    );
+
+    let mut is_authority = false;
+    for i in 0..(quorum.authorities_count as usize) {
+        if quorum.authorities[i] == authority_key {
+            is_authority = true;
+            break;
+        }
+    }
+    require!(is_authority, RegistryError::NotAnAuthority);
+
+    proposal.status = PROPOSAL_REJECTED;
+
+    emit!(ProposalRejected {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        authority: authority_key,
+    });
+
+    Ok(())
+}
+
+pub fn handler_execute_revoke_resource_proposal(
+    ctx: Context<ExecuteRevokeResourceProposal>,
+) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let quorum = &ctx.accounts.quorum;
+    let resource = &mut ctx.accounts.resource;
+    let clock = Clock::get()?;
+
+    require!(
+        proposal.action_type == ACTION_REVOKE_RESOURCE,
+        RegistryError::ProposalActionMismatch
+    );
+    require_keys_eq!(proposal.target, resource.key(), RegistryError::ProposalTargetMismatch);
+    require!(
+        proposal.status == PROPOSAL_APPROVED || proposal.approval_count >= quorum.threshold,
+        RegistryError::QuorumNotReached
+    );
+    require!(
+        proposal.status != PROPOSAL_EXECUTED,
+        RegistryError::ProposalClosed
+    );
+    if proposal.execution_timelock > 0 {
+        require!(
+            clock.unix_timestamp >= proposal.execution_timelock,
+            RegistryError::TimelockNotExpired
+        );
+    }
+    require!(resource.status == STATUS_ACTIVE, RegistryError::ResourceRevoked);
+
+    resource.status = STATUS_REVOKED;
+    proposal.status = PROPOSAL_EXECUTED;
+
+    emit!(ResourceRevoked {
+        resource: resource.key(),
+        revoked_by: proposal.key(),
+    });
+
+    emit!(ProposalExecuted {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        action_type: ACTION_REVOKE_RESOURCE,
+        target: resource.key(),
+    });
+
+    Ok(())
+}
+
+pub fn handler_execute_assign_role_proposal(
+    ctx: Context<ExecuteAssignRoleProposal>,
+    expires_at: i64,
+) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let quorum = &ctx.accounts.quorum;
+    let clock = Clock::get()?;
+
+    require!(
+        proposal.action_type == ACTION_ASSIGN_ROLE,
+        RegistryError::ProposalActionMismatch
+    );
+    require_keys_eq!(proposal.target, ctx.accounts.identity.key(), RegistryError::ProposalTargetMismatch);
+    require!(
+        proposal.status == PROPOSAL_APPROVED || proposal.approval_count >= quorum.threshold,
+        RegistryError::QuorumNotReached
+    );
+    require!(
+        proposal.status != PROPOSAL_EXECUTED,
+        RegistryError::ProposalClosed
+    );
+    if proposal.execution_timelock > 0 {
+        require!(
+            clock.unix_timestamp >= proposal.execution_timelock,
+            RegistryError::TimelockNotExpired
+        );
+    }
+
+    let grant = &mut ctx.accounts.grant;
+    grant.identity = ctx.accounts.identity.key();
+    grant.resource = ctx.accounts.organization.key();
+    grant.role = ctx.accounts.role.key();
+    grant.active = true;
+    grant.expires_at = expires_at;
+    grant.bump = ctx.bumps.grant;
+
+    proposal.status = PROPOSAL_EXECUTED;
+
+    emit!(RoleAssigned {
+        organization: ctx.accounts.organization.key(),
+        identity: ctx.accounts.identity.key(),
+        role: ctx.accounts.role.key(),
+    });
+
+    emit!(ProposalExecuted {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        action_type: ACTION_ASSIGN_ROLE,
+        target: ctx.accounts.identity.key(),
+    });
+
+    Ok(())
+}
+
+pub fn handler_execute_rotate_quorum_proposal(
+    ctx: Context<ExecuteRotateQuorumProposal>,
+    new_threshold: u8,
+    new_authorities: Vec<Pubkey>,
+) -> Result<()> {
+    let proposal = &mut ctx.accounts.proposal;
+    let quorum = &mut ctx.accounts.quorum;
+    let clock = Clock::get()?;
+
+    require!(
+        proposal.action_type == ACTION_ROTATE_QUORUM,
+        RegistryError::ProposalActionMismatch
+    );
+    require!(
+        proposal.status == PROPOSAL_APPROVED || proposal.approval_count >= quorum.threshold,
+        RegistryError::QuorumNotReached
+    );
+    require!(
+        proposal.status != PROPOSAL_EXECUTED,
+        RegistryError::ProposalClosed
+    );
+    if proposal.execution_timelock > 0 {
+        require!(
+            clock.unix_timestamp >= proposal.execution_timelock,
+            RegistryError::TimelockNotExpired
+        );
+    }
+
+    require!(new_threshold > 0, RegistryError::InvalidQuorumConfig);
+    require!(new_authorities.len() >= new_threshold as usize, RegistryError::InvalidQuorumConfig);
+    require!(new_authorities.len() <= MAX_AUTHORITIES, RegistryError::InvalidQuorumConfig);
+
+    for i in 0..new_authorities.len() {
+        for j in (i + 1)..new_authorities.len() {
+            require!(new_authorities[i] != new_authorities[j], RegistryError::InvalidQuorumConfig);
+        }
+    }
+
+    quorum.threshold = new_threshold;
+    quorum.authorities_count = new_authorities.len() as u8;
+    let mut auth_array = [Pubkey::default(); MAX_AUTHORITIES];
+    for (i, auth) in new_authorities.iter().enumerate() {
+        auth_array[i] = *auth;
+    }
+    quorum.authorities = auth_array;
+
+    proposal.status = PROPOSAL_EXECUTED;
+
+    emit!(QuorumInitialized {
+        organization: quorum.organization,
+        threshold: new_threshold,
+        authorities_count: new_authorities.len() as u8,
+    });
+
+    emit!(ProposalExecuted {
+        organization: proposal.organization,
+        proposal_id: proposal.proposal_id,
+        action_type: ACTION_ROTATE_QUORUM,
+        target: quorum.key(),
+    });
+
+    Ok(())
+}
+

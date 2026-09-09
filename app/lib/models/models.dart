@@ -218,3 +218,69 @@ class OrgMember {
   bool hasPermission(int bitmask) => (permissionsMask & bitmask) != 0;
 }
 
+/// Proposal status for Proof of Authority (PoA) governance
+enum ProposalStatus { pending, approved, executed, rejected }
+
+/// Proof of Authority (PoA) Consensus Proposal
+class ConsensusProposalModel {
+  final int proposalId;
+  final String title;
+  final String description;
+  final String proposerName;
+  final String proposerPubkey;
+  final int actionType; // 1 = Assign Role, 2 = Revoke Role, 3 = Revoke Resource, 4 = Rotate Quorum
+  final String targetAddress;
+  final String targetLabel;
+  final int requiredThreshold;
+  int currentApprovals;
+  final List<String> approvedBy;
+  ProposalStatus status;
+  final DateTime createdAt;
+  final bool isBiometricGated;
+
+  ConsensusProposalModel({
+    required this.proposalId,
+    required this.title,
+    required this.description,
+    required this.proposerName,
+    required this.proposerPubkey,
+    required this.actionType,
+    required this.targetAddress,
+    required this.targetLabel,
+    required this.requiredThreshold,
+    required this.currentApprovals,
+    required this.approvedBy,
+    this.status = ProposalStatus.pending,
+    required this.createdAt,
+    this.isBiometricGated = true,
+  });
+
+  bool get isApproved => currentApprovals >= requiredThreshold;
+  bool get isPending => status == ProposalStatus.pending;
+  bool get isExecuted => status == ProposalStatus.executed;
+  bool get isRejected => status == ProposalStatus.rejected;
+
+  String get shortTargetAddress {
+    if (targetAddress.length <= 12) return targetAddress;
+    return '${targetAddress.substring(0, 6)}...${targetAddress.substring(targetAddress.length - 4)}';
+  }
+}
+
+/// Proof of Authority Quorum Configuration
+class QuorumConfigModel {
+  final int threshold;
+  final int totalAuthorities;
+  final List<String> authorityNames;
+  final List<String> authorityPubkeys;
+  final bool biometricEnclaveActive;
+
+  QuorumConfigModel({
+    this.threshold = 2,
+    this.totalAuthorities = 3,
+    required this.authorityNames,
+    required this.authorityPubkeys,
+    this.biometricEnclaveActive = true,
+  });
+}
+
+
