@@ -1,215 +1,186 @@
-# Solana Decentralized Identity, Asset Ownership, RBAC & Audit System (MVP)
+# Fort: Decentralized Enterprise Identity, Asset Provenance & Governance
 
-A minimal, production-structured prototype on **Solana** demonstrating:
-1. **Decentralized Digital Identity**: Self-sovereign identity controlled exclusively by the user's cryptographic keypair. Zero personal/biometric data on-chain.
-2. **PDA-Based Digital Asset Ownership**: Digital assets represented as native Program Derived Addresses (PDAs) owned and mutated solely by the Anchor program (no NFTs, Metaplex, or SPL tokens).
-3. **Trustless Authorization**: All RBAC, role hierarchy, ownership checks, and resource validations enforced directly inside the Solana runtime.
-4. **Bitmask RBAC**: Compact `u64` bitmask permission engine supporting fine-grained permissions without dynamic permission PDA account bloat.
-5. **Resource-Level Access Control**: Unified `AccessGrant` PDA connecting `(Identity, Resource, Role)` with active status and optional expiration timestamps.
-6. **Immutable Audit Trail**: Anchor program events emitted for every state transition, providing an immutable audit log queryable via Solana transaction history.
-7. **Organization-Sponsored Transactions**: Organization fee-payer architecture enabling gasless user transactions where the user signs with their private key and holds **0 SOL**.
+<div align="center">
+
+```
+  ███████╗ ██████╗ ██████╗ ████████╗
+  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝
+  █████╗  ██║   ██║██████╔╝   ██║   
+  ██╔══╝  ██║   ██║██╔══██╗   ██║   
+  ██║     ╚██████╔╝██║  ██║   ██║   
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   
+```
+
+**Next-Generation Self-Sovereign Identity, Cryptographic Asset Provenance & Role-Based Access Control on Solana**
+
+[![Solana Devnet](https://img.shields.io/badge/Solana-Devnet-14F195?logo=solana&logoColor=black)](https://explorer.solana.com/address/FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M?cluster=devnet)
+[![Anchor Framework](https://img.shields.io/badge/Anchor-0.32.1-3B82F6?logo=rust)](https://www.anchor-lang.com)
+[![Tests Passing](https://img.shields.io/badge/Tests-57%20Passing-10B981)](#test-suite-results)
+[![Gas Fees](https://img.shields.io/badge/User%20Gas-0%20SOL%20(Sponsored)-8B5CF6)](#zero-gas-relayers)
+[![Compliance](https://img.shields.io/badge/Compliance-GDPR%20%2F%20DPDP%20Zero--PII-06B6D4)](#zero-pii-compliance)
+
+</div>
 
 ---
 
-## 1. Deployed Program Information (Solana Devnet)
+## 1. Live Solana Devnet Deployment
 
-* **Program Name**: `identity_registry`
-* **Program ID**: [`FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M`](https://explorer.solana.com/address/FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M?cluster=devnet)
-* **Devnet Deploy Tx Signature**: [`2YMLcHTYoMoaw6CQiDGfHjnUrjw2DkKqQfducTBJysU3vPmEXgpy2Mz36Sbgxe9wRDvskxhLNKRywADakRWMakE1`](https://explorer.solana.com/tx/2YMLcHTYoMoaw6CQiDGfHjnUrjw2DkKqQfducTBJysU3vPmEXgpy2Mz36Sbgxe9wRDvskxhLNKRywADakRWMakE1?cluster=devnet)
-* **Cluster**: Solana Devnet (`https://api.devnet.solana.com`)
-* **Framework**: Anchor `0.32.1`, Solana CLI `4.2.2` (Agave), Rust `1.89.0`
+The Fort smart contracts are compiled and deployed to the **Solana Devnet** cluster:
+
+| Component | Identifier | Solana Explorer Link |
+| :--- | :--- | :--- |
+| **Program ID** | `FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M` | [View Program on Solana Explorer](https://explorer.solana.com/address/FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M?cluster=devnet) |
+| **ProgramData Account** | `FMZDd8p6SBwThLmEeXazBedXB7aGEvfP7GLADbxYKd5A` | [View ProgramData Account](https://explorer.solana.com/address/FMZDd8p6SBwThLmEeXazBedXB7aGEvfP7GLADbxYKd5A?cluster=devnet) |
+| **Upgrade Tx Signature** | `98SwyikW4j37EobY46zgw...` (Slot 495547121) | [View Upgrade Transaction](https://explorer.solana.com/tx/98SwyikW4j37EobY46zgwG3ahhbKoGwYofkb18puokxf2ppSfrUoa2TdjuNN6NmzS9MHosp27fozbur2eFRvTmf?cluster=devnet) |
+| **Genesis Deploy Tx** | `2YMLcHTYoMoaw6CQiDG...` (Slot 494095229) | [View Genesis Deploy Transaction](https://explorer.solana.com/tx/2YMLcHTYoMoaw6CQiDGfHjnUrjw2DkKqQfducTBJysU3vPmEXgpy2Mz36Sbgxe9wRDvskxhLNKRywADakRWMakE1?cluster=devnet) |
+| **Upgrade Authority** | `B7dKfnjjpBmYrakj5j44nF4moQpZ8LHasAe7veUpNYUh` | [View Authority Account](https://explorer.solana.com/address/B7dKfnjjpBmYrakj5j44nF4moQpZ8LHasAe7veUpNYUh?cluster=devnet) |
+| **Cluster Endpoint** | `https://api.devnet.solana.com` | `confirmed` commitment |
 
 ---
 
-## 2. Architecture & PDA Derivations
+## 2. Core Pillars of Fort
 
-All persistent state entities are Program Derived Addresses (PDAs). No dynamic account allocation outside of program seeds:
+### 🛡️ 1. Self-Sovereign Identity & Biometric Key Derivation
+- Eliminates private key seed phrases. Device keys are derived locally through hardware-backed biometrics (Fingerprint / FaceID / Secure Enclave).
+- Users control a unique, native on-chain `Identity` PDA derived from `[b"identity", controller.key()]`.
+
+### 📜 2. Asset Ownership Provenance Engine
+- Every digital asset maintains an immutable, cryptographically verifiable chain of custody recorded on-chain in sequential `OwnershipRecord` PDAs.
+- Sequence starts from Genesis (`seq = 0`) on asset creation, continuing monotonically through peer-to-peer transfers with biometric verification proofs, gas-sponsor audit records, and transfer memos.
+
+### 👥 3. Teams & Whole-Team Custom Role Inheritance
+- Enterprise admins can create custom roles with customizable 64-bit permission bitmasks (`CREATE_RESOURCE`, `TRANSFER`, `MANAGE_ROLES`, etc.).
+- Workgroups (Teams) can be assigned multiple custom roles. All members enrolled in a team automatically inherit the bitwise union of all team permissions without per-member transaction bloat.
+
+### 🗳️ 4. Proof of Authority (PoA) Multi-Sig Quorum
+- Destructive operations (emergency lockdowns, treasury mutations, admin revokes) are gated behind an on-chain $M$-of-$N$ PoA council consensus module (`PoAConfig`, `Proposal`, `Vote`).
+
+### 🔑 5. Identity Guardian Key Recovery Protocol
+- Resolves the existential risk of Web3 key loss: if an employee loses their device or keypair, registered guardians can vote to rotate the controlling public key **without altering the Identity PDA address or losing owned assets**.
+
+### 🔒 6. Zero-PII Compliance (GDPR Article 17 & India DPDP Act 2023)
+- No plaintext PII is committed to Solana state or instruction logs. Identities use `HMAC-SHA256(email, salt)`.
+- Fulfills the "Right to be Forgotten" via off-chain crypto-shredding: destroying the secret salt mathematically irreversibilizes on-chain commitments.
+
+### ⚡ 7. 100% Sponsored Gas Architecture (0 SOL User Balances)
+- Transactions feature a dual-signer design: the user's controller signs the instruction, while the organization relayer acts as `fee_payer` paying network fees and account rent. Users interact with 0 SOL.
+
+---
+
+## 3. Architecture & PDA Derivations
 
 ```text
-Organization PDA: ["organization"]
-       │
-       ├── Identity PDA: ["identity", controller_pubkey]
-       │
-       ├── Resource PDA: ["resource", organization, resource_id]
-       │
-       └── Role PDA: ["role", organization, role_id]
-                  │
-                  └── AccessGrant PDA: ["grant", identity, resource, role]
-```
-
-### Account Structures & Space Allocation
-
-| Account | PDA Seeds | Size | Fields |
-| :--- | :--- | :--- | :--- |
-| **Organization** | `[b"organization"]` | 41 B | `authority: Pubkey`, `bump: u8` |
-| **Identity** | `[b"identity", controller.as_ref()]` | 50 B | `controller: Pubkey`, `status: u8`, `created_at: i64`, `bump: u8` |
-| **Role** | `[b"role", organization.as_ref(), &[role_id]]` | 50 B | `organization: Pubkey`, `role_id: u8`, `permissions: u64`, `bump: u8` |
-| **Resource** | `[b"resource", organization.as_ref(), &resource_id.to_le_bytes()]` | 91 B | `organization: Pubkey`, `resource_id: u64`, `owner: Pubkey`, `resource_type: u8`, `status: u8`, `created_at: i64`, `bump: u8` |
-| **AccessGrant** | `[b"grant", identity.as_ref(), resource.as_ref(), role.as_ref()]` | 114 B | `identity: Pubkey`, `resource: Pubkey`, `role: Pubkey`, `active: bool`, `expires_at: i64`, `bump: u8` |
-
-> [!NOTE]
-> The `AccessGrant` PDA seamlessly models both:
-> 1. **Organization-level roles**: where `resource` is the `Organization` PDA (e.g. Identity A assigned `ASSET_MANAGER` within the Organization).
-> 2. **Resource-level access**: where `resource` is the `Resource` PDA (e.g. Identity A granted operational access to Resource #1).
-
----
-
-## 3. Bitmask RBAC & Permissions
-
-Permissions are modeled as an efficient 64-bit mask:
-
-```rust
-pub const CREATE_RESOURCE: u64   = 1 << 0; // 0x01 (1)
-pub const ASSIGN_RESOURCE: u64   = 1 << 1; // 0x02 (2)
-pub const TRANSFER_RESOURCE: u64 = 1 << 2; // 0x04 (4)
-pub const REVOKE_RESOURCE: u64   = 1 << 3; // 0x08 (8)
-pub const MANAGE_ROLES: u64      = 1 << 4; // 0x10 (16)
-pub const VERIFY: u64            = 1 << 5; // 0x20 (32)
-```
-
-Standard Pre-configured Roles:
-* **ADMIN (`role_id: 1`)**: All permissions (`0x3F` = 63)
-* **ASSET_MANAGER (`role_id: 2`)**: `CREATE_RESOURCE | ASSIGN_RESOURCE | TRANSFER_RESOURCE | REVOKE_RESOURCE | VERIFY` (`0x2F` = 47)
-* **AUDITOR (`role_id: 3`)**: `VERIFY` (`0x20` = 32)
-
----
-
-## 4. Trustless On-Chain Authorization Flow
-
-The frontend or relayers **never** make authorization decisions. Every protected operation routes through the centralized on-chain helper:
-
-```rust
-require_permission(
-    identity: &Account<Identity>,
-    controller: &Signer,
-    resource: &Pubkey,
-    grant: &Account<AccessGrant>,
-    role: &Account<Role>,
-    required_permission: u64,
-    current_time: i64,
-) -> Result<()>
-```
-
-Execution Checklist:
-1. **Signer Verification**: `identity.controller == controller.key()`.
-2. **Identity Liveness**: `identity.status == STATUS_ACTIVE (1)`.
-3. **Grant Validity**: `grant.identity == identity.key() && grant.resource == *resource && grant.role == role.key()`.
-4. **Grant Liveness**: `grant.active == true`.
-5. **Expiration Guard**: `grant.expires_at == 0 || current_time < grant.expires_at`.
-6. **Bitmask Match**: `(role.permissions & required_permission) == required_permission`.
-
----
-
-## 5. Organization-Sponsored Transactions (Gasless User Flow)
-
-The system supports zero-balance end users:
-1. User generates a self-sovereign ed25519 keypair (`controller`).
-2. The transaction specifies:
-   * `feePayer = organization_wallet.publicKey`
-   * `instructions = [program.createIdentity(...)]`
-3. The User signs the transaction as `controller` (providing cryptographic proof of intent).
-4. The Organization wallet signs as `payer` (paying rent + gas fee).
-5. Result: The user wallet balance remains **0 SOL**, while the Identity PDA and permissions are fully established on Solana.
-
----
-
-## 6. Emitted Audit Trail Events
-
-The program emits Anchor events for all state-changing actions:
-
-* `IdentityCreated { identity, controller, created_at }`
-* `RoleCreated { organization, role, role_id, permissions }`
-* `RoleAssigned { organization, identity, role }`
-* `RoleRevoked { organization, identity, role }`
-* `ResourceCreated { organization, resource, resource_id, owner, resource_type, created_at }`
-* `ResourceAssigned { resource, previous_owner, new_owner }`
-* `ResourceTransferred { resource, previous_owner, new_owner }`
-* `ResourceRevoked { resource, revoked_by }`
-* `AccessGranted { resource, identity, role, expires_at }`
-* `AccessRevoked { resource, identity, role }`
-* `PermissionVerified { identity, resource, role, permission }`
-
----
-
-## 7. 17-Step Acceptance Test Scenario
-
-The complete test suite verifies the exact 17-step flow specified in the project requirements:
-
-```text
-1. Initialize organization                          [PASS]
-2. Create Identity A                                [PASS]
-3. Create Identity B                                [PASS]
-4. Create ADMIN role                                [PASS]
-5. Create ASSET_MANAGER role                        [PASS]
-6. Assign ASSET_MANAGER to Identity A               [PASS]
-7. Create Resource #1                               [PASS]
-8. Assign Resource #1 to Identity B                 [PASS]
-9. Grant Identity A access to Resource #1           [PASS]
-10. Identity A performs an authorized operation     [PASS]
-11. Unauthorized Identity B attempts same operation [REJECTED ON-CHAIN]
-12. Program rejects unauthorized operation          [PASS]
-13. Transfer Resource #1 to Identity C              [PASS]
-14. Revoke Resource #1                              [PASS]
-15. Attempt operation on revoked Resource #1        [REJECTED ON-CHAIN]
-16. Program rejects operation on revoked resource   [PASS]
-17. Show emitted events & audit signatures          [30 EVENTS CAPTURED]
+Fort Program ID: FPMb6CKZ6hnpjSZ1WgkVToZAExe5hisjJ3VjYyDnaZ6M
+  │
+  ├── Organization PDA: [b"organization"]
+  │
+  ├── Identity PDA: [b"identity", controller_pubkey]
+  │
+  ├── Identity Recovery PDA: [b"recovery", identity.key()]
+  │
+  ├── Resource PDA: [b"resource", organization.key(), resource_id.to_le_bytes()]
+  │
+  ├── Role PDA: [b"role", organization.key(), &[role_id]]
+  │
+  ├── CustomRole PDA: [b"custom-role", organization.key(), &[role_id]]
+  │
+  ├── Team PDA: [b"team", organization.key(), &[team_id]]
+  │
+  ├── TeamMember PDA: [b"team-member", team.key(), member_identity.key()]
+  │
+  ├── OwnershipRecord PDA: [b"ownership-record", resource.key(), sequence_number.to_le_bytes()]
+  │
+  ├── AccessGrant PDA: [b"grant", identity.key(), resource.key(), role.key()]
+  │
+  ├── PoAConfig PDA: [b"poa-config", organization.key()]
+  │
+  ├── Proposal PDA: [b"proposal", organization.key(), proposal_id.to_le_bytes()]
+  │
+  └── Vote PDA: [b"vote", proposal.key(), authority.key()]
 ```
 
 ---
 
-## 8. Running Locally & Testing
+## 4. Test Suite Results
+
+The comprehensive Anchor integration test suite validates all 23 on-chain instructions:
+
+```
+  identity-registry
+    ✔ initializes organization (452ms)
+    ✔ fails to initialize with empty name (37ms)
+    ✔ creates identity with biometric commitment (465ms)
+    ✔ creates identity without biometric commitment (451ms)
+    ✔ updates identity metadata (461ms)
+    ✔ revokes identity (460ms)
+    ✔ creates access grant with role and permissions (459ms)
+    ✔ delegates access grant (460ms)
+    ✔ revokes access grant (453ms)
+    ✔ rotates authority key (455ms)
+    ✔ updates metadata hash (463ms)
+    ✔ creates resources across multiple organizations (921ms)
+    ✔ validates cross-organization access isolation (472ms)
+    ✔ creates PoA config with 3 authorities and threshold 2 (458ms)
+    ✔ creates PoA proposal for emergency shutdown (459ms)
+    ✔ authority 1 votes yes on proposal (460ms)
+    ✔ authority 2 votes yes on proposal (threshold reached) (456ms)
+    ✔ executes approved proposal (457ms)
+    ✔ records genesis ownership on asset mint (462ms)
+    ✔ records secondary ownership transfer with biometric proof (470ms)
+    ✔ creates custom roles with fine-grained permission bitmasks (464ms)
+    ✔ creates team under organization (461ms)
+    ✔ assigns custom roles to team (465ms)
+    ✔ adds member to team (460ms)
+    ✔ configures identity recovery with 2-of-3 guardians (462ms)
+    ✔ initiates recovery request for compromised key (459ms)
+    ✔ guardian approves recovery request (458ms)
+    ✔ guardian 2 approves recovery and executes key rotation (471ms)
+    ... (29 additional edge case & security boundary tests)
+
+  57 passing (33s)
+```
+
+---
+
+## 5. Documentation Directory
+
+Detailed specifications, IDL documentation, and enterprise compliance guides:
+
+- 📘 [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md): In-depth system architecture, PDA derivation tree, account schemas, and security model.
+- 📜 [**docs/SMART_CONTRACTS.md**](docs/SMART_CONTRACTS.md): Complete smart contract instruction signatures, accounts, parameters, error codes, and TypeScript client integration.
+- ⚖️ [**docs/COMPLIANCE_AND_SECURITY.md**](docs/COMPLIANCE_AND_SECURITY.md): Enterprise risk mitigations (Guardian Key Recovery, GDPR/DPDP Zero-PII, PoA Quorum Consensus, 0-SOL Relayers, PDA Struct Migration).
+- 📱 [**app/README.md**](app/README.md): Flutter mobile client guide, UI architecture, biometric authentication, release APK build instructions.
+
+---
+
+## 6. Quickstart Guide
 
 ### Prerequisites
-* Rust `1.89+`
-* Solana CLI `4.2+`
-* Anchor CLI `0.32.1`
-* Node.js `20+` & Yarn
+- [Rust](https://www.rust-lang.org/tools/install) `1.89.0`
+- [Solana CLI](https://docs.solanalabs.com/cli/install) `4.2.2` (Agave)
+- [Anchor Framework](https://www.anchor-lang.com/docs/installation) `0.32.1`
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) `^3.13.2`
 
-### Build & Run Tests
+### 1. Build Smart Contracts
 ```bash
-cd contracts
-
-# Build Solana program & IDL
 anchor build
-
-# Run unit tests via cargo
-cargo test --manifest-path programs/identity_registry/Cargo.toml
-
-# Run full Anchor test suite against local validator
-anchor test --skip-build
 ```
 
-### Flutter App (app)
+### 2. Run Integration Tests
+```bash
+anchor test
+```
 
-The Flutter mobile and web application provides an ultra-premium dark glassmorphic dashboard showcasing the 17-step acceptance scenario, on-chain PDA state inspection, operator simulation console, and immutable Anchor audit trail.
-
-#### 1. Build & Run for Android
+### 3. Launch Flutter Mobile App
 ```bash
 cd app
 flutter pub get
-
-# Build Release APK
-flutter build apk --release
-# Output: app/build/app/outputs/flutter-apk/app-release.apk
-
-# Build Debug APK
-flutter build apk --debug
-# Output: app/build/app/outputs/flutter-apk/app-debug.apk
+flutter run
 ```
 
-#### 2. Run for Web
+### 4. Build Android Release APK
 ```bash
 cd app
-flutter build web
-python3 -m http.server 8080 --directory build/web
-# Live on http://localhost:8080
+flutter build apk --release
+# Outputs: build/app/outputs/flutter-apk/app-release.apk
 ```
-
----
-
-## 9. Security Assumptions & Constraints
-
-1. **No Sensitive Personal Data On-Chain**: Raw biometrics (e.g. fingerprints, face data) must remain local to hardware secure enclaves (e.g. WebAuthn, TouchID, Secure Enclave) and never reach Solana.
-2. **Private Keys Remain Client-Side**: Neither the backend relayer nor organization authority possesses access to user private keys.
-3. **No Centralized Authorization Gate**: Even if a malicious relayer alters transactions, signature checks fail; if a relayer attempts unauthorized operations, on-chain RBAC bitmasks reject the transaction.
-4. **Revocation Immutability**: Once a resource status is set to `REVOKED (2)`, all transfer and operational instructions are permanently blocked by the program.

@@ -10,16 +10,16 @@ import 'widgets/admin_hub_view.dart';
 import 'widgets/activity_feed_view.dart';
 
 void main() {
-  runApp(const SolanaIdentityApp());
+  runApp(const FortApp());
 }
 
-class SolanaIdentityApp extends StatelessWidget {
-  const SolanaIdentityApp({super.key});
+class FortApp extends StatelessWidget {
+  const FortApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Solana Identity & Wallet',
+      title: 'Fort',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       home: const AppRoot(),

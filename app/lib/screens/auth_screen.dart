@@ -91,7 +91,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'to continue to Solana Identity & Wallet',
+                'to continue to Fort',
                 style: TextStyle(fontSize: 13, color: AppColors.textDim),
                 textAlign: TextAlign.center,
               ),
@@ -178,9 +178,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 20),
 
                 const Text(
-                  'Solana Identity & Wallet',
+                  'Fort',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                     color: AppColors.textMain,
@@ -189,7 +189,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Self-Sovereign Identity • Zero-Gas Transactions\nDecentralized Asset Ownership & RBAC',
+                  'Enterprise Identity, Asset Ownership & Governance\nPowered by Solana & Biometric Key Derivation',
                   style: TextStyle(fontSize: 13, color: AppColors.textDim, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
