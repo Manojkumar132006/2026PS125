@@ -5,6 +5,7 @@ import '../services/solana_service.dart';
 import '../theme/app_theme.dart';
 import 'create_asset_modal.dart';
 import 'transfer_modal.dart';
+import 'ownership_provenance_modal.dart';
 
 class DigitalAssetsView extends StatefulWidget {
   final SolanaService service;
@@ -130,6 +131,7 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
                 asset: asset,
                 isOwner: asset.ownerIdentityPda == widget.service.currentUser?.identityPda,
                 onTap: () => _showAssetDetailsModal(context, asset),
+                onProvenanceTap: () => showOwnershipProvenanceModal(context, asset: asset, service: widget.service),
               );
             },
           ),
@@ -238,6 +240,26 @@ class _DigitalAssetsViewState extends State<DigitalAssetsView> {
               ),
               const SizedBox(height: 20),
 
+              // Ownership History & Provenance Action
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  showOwnershipProvenanceModal(context, asset: asset, service: widget.service);
+                },
+                icon: const Icon(Icons.history_edu_rounded, size: 18, color: AppColors.cyan),
+                label: const Text(
+                  'View Ownership History & Provenance',
+                  style: TextStyle(color: AppColors.cyan, fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  side: const BorderSide(color: AppColors.cyan, width: 1.2),
+                  backgroundColor: AppColors.cyan.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 10),
+
               // Actions
               if (isOwner) ...[
                 ElevatedButton.icon(
@@ -306,11 +328,13 @@ class _AssetCard extends StatelessWidget {
   final DigitalAsset asset;
   final bool isOwner;
   final VoidCallback onTap;
+  final VoidCallback onProvenanceTap;
 
   const _AssetCard({
     required this.asset,
     required this.isOwner,
     required this.onTap,
+    required this.onProvenanceTap,
   });
 
   @override
@@ -319,7 +343,7 @@ class _AssetCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.bgCard,
           borderRadius: BorderRadius.circular(14),
@@ -384,6 +408,17 @@ class _AssetCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Quick Provenance Button
+            IconButton(
+              icon: const Icon(Icons.history_edu_rounded, size: 20, color: AppColors.cyan),
+              tooltip: 'View Ownership History',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: onProvenanceTap,
+            ),
+            const SizedBox(width: 4),
 
             const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDim),
           ],
